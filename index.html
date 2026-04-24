@@ -344,6 +344,7 @@
     <script>
       const API_URL_STORAGE_KEY = "stockScannerApiBaseUrl";
       const YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/";
+      const LOCAL_MARKET_DATA_URL = "./data/market-data.json";
 
       const periodSlots = {
         weekly: [
@@ -555,6 +556,15 @@
         };
       }
 
+      async function fetchLocalMarketData() {
+        const response = await fetch(`${LOCAL_MARKET_DATA_URL}?v=${Date.now()}`);
+        if (!response.ok) throw new Error("同梱データを取得できませんでした");
+        const json = await response.json();
+        const items = json.markets?.[state.market] || [];
+        if (!items.length) throw new Error("同梱データに対象市場がありません");
+        return items;
+      }
+
       async function fetchChart(symbol) {
         const url = `${YAHOO_CHART_URL}${encodeURIComponent(symbol)}?range=${ranges[state.periodType]}&interval=1d`;
         const response = await fetch(url);
@@ -614,12 +624,22 @@
       }
 
       async function screenWithBrowserData() {
-        const rows = await Promise.allSettled(
-          universe[state.market].map(async ([symbol, name]) => {
-            const chart = await fetchChart(symbol);
-            return scoreFromChart(symbol, name, chart.close, chart.volume);
-          })
-        );
+        let rows;
+        try {
+          const localItems = await fetchLocalMarketData();
+          rows = localItems.map((item) => ({
+            status: "fulfilled",
+            value: scoreFromChart(item.symbol, item.name, item.close, item.volume)
+          }));
+        } catch (error) {
+          rows = await Promise.allSettled(
+            universe[state.market].map(async ([symbol, name]) => {
+              const chart = await fetchChart(symbol);
+              return scoreFromChart(symbol, name, chart.close, chart.volume);
+            })
+          );
+        }
+
         return rows
           .filter((row) => row.status === "fulfilled" && row.value)
           .map((row) => row.value)
@@ -655,7 +675,7 @@
           const items = apiBaseUrl ? await screenWithExternalApi(apiBaseUrl) : await screenWithBrowserData();
           if (!items.length) throw new Error("表示できる銘柄がありませんでした");
           renderRanking(items);
-          setMessage(apiBaseUrl ? "外部APIから取得しました。" : "ブラウザから株価データを自動取得しました。財務指標は外部API未設定時は中立扱いです。");
+          setMessage(apiBaseUrl ? "外部APIから取得しました。" : "同梱された株価データを読み込みました。GitHub Actionsで平日に自動更新されます。");
         } catch (error) {
           setMessage(`取得に失敗しました: ${error.message || error}`);
         }
