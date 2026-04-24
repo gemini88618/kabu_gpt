@@ -16,7 +16,7 @@
         --panel: #f7f8f3;
         --line: #d9dfd0;
         --accent: #0f8b6f;
-        --gold: #d6a642;
+        --warn: #7a5300;
         --safe-top: env(safe-area-inset-top);
         --safe-bottom: env(safe-area-inset-bottom);
       }
@@ -76,7 +76,7 @@
         padding: 14px;
         border: 1px solid var(--line);
         border-radius: 8px;
-        background: rgba(255, 255, 255, 0.86);
+        background: rgba(255, 255, 255, 0.88);
         box-shadow: 0 18px 55px rgba(13, 20, 30, 0.14);
       }
 
@@ -148,6 +148,7 @@
       }
 
       .slider-row {
+        display: block;
         margin-top: 10px;
       }
 
@@ -175,10 +176,16 @@
         margin-top: 14px;
       }
 
-      .api-config {
-        display: grid;
-        gap: 8px;
-        margin-top: 10px;
+      .advanced {
+        margin-top: 14px;
+        color: rgba(14, 17, 22, 0.68);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .advanced summary {
+        min-height: 40px;
+        cursor: pointer;
       }
 
       .api-input {
@@ -199,7 +206,7 @@
         padding: 12px;
         border-radius: 8px;
         background: #fff7dd;
-        color: #614200;
+        color: var(--warn);
         font-size: 13px;
         font-weight: 800;
       }
@@ -317,21 +324,16 @@
         <div id="sliders"></div>
       </section>
 
-      <section class="card">
-        <div class="section-title">
-          <span>API接続</span>
-          <span id="apiStatus">未確認</span>
-        </div>
-        <div class="api-config">
-          <input class="api-input" id="apiBaseUrlInput" placeholder="https://your-api.onrender.com" />
-          <button class="button outline" id="saveApiButton">API URLを保存して接続確認</button>
-        </div>
-      </section>
-
       <div class="actions">
         <button class="button dark" id="screenButton">スクリーニング</button>
         <button class="button outline" id="backtestButton">バックテスト</button>
       </div>
+
+      <details class="advanced">
+        <summary>外部FastAPIを使う場合だけ開く</summary>
+        <input class="api-input" id="apiBaseUrlInput" placeholder="https://your-api.onrender.com" />
+        <button class="button outline" id="saveApiButton" style="width: 100%; margin-top: 8px">API URLを保存</button>
+      </details>
 
       <div class="message" id="message"></div>
       <section class="ranking" id="ranking">
@@ -341,6 +343,7 @@
 
     <script>
       const API_URL_STORAGE_KEY = "stockScannerApiBaseUrl";
+      const YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/";
 
       const periodSlots = {
         weekly: [
@@ -363,11 +366,9 @@
         ]
       };
 
-      const targetReturns = {
-        weekly: 10,
-        monthly: 50,
-        half_year: 300
-      };
+      const targetReturns = { weekly: 10, monthly: 50, half_year: 300 };
+      const horizons = { weekly: 5, monthly: 21, half_year: 126 };
+      const ranges = { weekly: "6mo", monthly: "1y", half_year: "2y" };
 
       const coefficientLabels = {
         per: "PER",
@@ -377,6 +378,37 @@
         moving_average: "移動平均",
         volume: "出来高",
         momentum: "モメンタム"
+      };
+
+      const universe = {
+        jp: [
+          ["7203.T", "Toyota Motor"],
+          ["6758.T", "Sony Group"],
+          ["8035.T", "Tokyo Electron"],
+          ["9984.T", "SoftBank Group"],
+          ["6861.T", "Keyence"],
+          ["7974.T", "Nintendo"],
+          ["6098.T", "Recruit Holdings"],
+          ["4063.T", "Shin-Etsu Chemical"],
+          ["6501.T", "Hitachi"],
+          ["8058.T", "Mitsubishi Corp"],
+          ["8306.T", "Mitsubishi UFJ"],
+          ["9432.T", "NTT"]
+        ],
+        us: [
+          ["NVDA", "NVIDIA"],
+          ["MSFT", "Microsoft"],
+          ["AAPL", "Apple"],
+          ["AMZN", "Amazon"],
+          ["GOOGL", "Alphabet"],
+          ["META", "Meta Platforms"],
+          ["TSLA", "Tesla"],
+          ["AVGO", "Broadcom"],
+          ["AMD", "Advanced Micro Devices"],
+          ["NFLX", "Netflix"],
+          ["CRM", "Salesforce"],
+          ["COST", "Costco"]
+        ]
       };
 
       const state = {
@@ -394,47 +426,34 @@
         }
       };
 
+      function clip(value, low = -1, high = 1) {
+        if (!Number.isFinite(value)) return 0;
+        return Math.max(low, Math.min(high, value));
+      }
+
+      function mean(values) {
+        const valid = values.filter((value) => Number.isFinite(value));
+        return valid.length ? valid.reduce((sum, value) => sum + value, 0) / valid.length : 0;
+      }
+
       function setMessage(text) {
         const el = document.getElementById("message");
         el.textContent = text;
         el.classList.toggle("show", Boolean(text));
       }
 
-      function getDefaultApiBaseUrl() {
-        const saved = localStorage.getItem(API_URL_STORAGE_KEY);
-        if (saved) return saved;
-        if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
-          return "http://localhost:8000";
-        }
-        return "";
-      }
-
       function getApiBaseUrl() {
         return document.getElementById("apiBaseUrlInput").value.trim().replace(/\/$/, "");
       }
 
-      async function checkApi() {
-        const apiBaseUrl = getApiBaseUrl();
-        const status = document.getElementById("apiStatus");
-
-        if (!apiBaseUrl) {
-          status.textContent = "URL未設定";
-          setMessage("RenderにデプロイしたFastAPIのURLを入力してください。");
-          return false;
-        }
-
-        try {
-          status.textContent = "確認中";
-          const response = await fetch(`${apiBaseUrl}/api/health`, { method: "GET" });
-          if (!response.ok) throw new Error("health check failed");
-          localStorage.setItem(API_URL_STORAGE_KEY, apiBaseUrl);
-          status.textContent = "接続OK";
-          setMessage("API接続を確認しました。株価データはyfinance経由で取得されます。");
-          return true;
-        } catch (error) {
-          status.textContent = "接続NG";
-          setMessage("APIに接続できません。RenderのURL、またはバックエンド起動状態を確認してください。");
-          return false;
+      function saveApiUrl() {
+        const url = getApiBaseUrl();
+        if (url) {
+          localStorage.setItem(API_URL_STORAGE_KEY, url);
+          setMessage("外部API URLを保存しました。次回から優先して使います。");
+        } else {
+          localStorage.removeItem(API_URL_STORAGE_KEY);
+          setMessage("外部API URLを削除しました。ブラウザ直接取得に戻します。");
         }
       }
 
@@ -450,10 +469,7 @@
       function renderSlots() {
         const root = document.getElementById("periodSlotButtons");
         root.innerHTML = periodSlots[state.periodType]
-          .map(([value, label]) => {
-            const active = value === state.periodSlot ? " active" : "";
-            return `<button class="button${active}" data-period-slot="${value}">${label}</button>`;
-          })
+          .map(([value, label]) => `<button class="button${value === state.periodSlot ? " active" : ""}" data-period-slot="${value}">${label}</button>`)
           .join("");
         root.querySelectorAll("[data-period-slot]").forEach((button) => {
           button.addEventListener("click", () => {
@@ -503,7 +519,7 @@
         const root = document.getElementById("ranking");
         root.innerHTML = items
           .map((item) => {
-            const actual = item.actual_return === null || item.actual_return === undefined ? "-" : `${item.actual_return.toFixed(1)}%`;
+            const actual = item.actual_return == null ? "-" : `${item.actual_return.toFixed(1)}%`;
             return `
               <article class="stock">
                 <div class="stock-top">
@@ -524,6 +540,94 @@
           .join("");
       }
 
+      function getWindow(close, volume) {
+        const horizon = horizons[state.periodType];
+        if (state.periodSlot === "current_to_next") {
+          return { sourceClose: close, sourceVolume: volume, evaluationClose: null };
+        }
+        const multiplier = state.periodSlot === "p1_to_now" ? 1 : state.periodSlot === "p2_to_p1" ? 2 : 3;
+        const evalStart = close.length - horizon * multiplier;
+        const evalEnd = close.length - horizon * (multiplier - 1);
+        return {
+          sourceClose: close.slice(0, evalStart),
+          sourceVolume: volume.slice(0, evalStart),
+          evaluationClose: close.slice(evalStart, evalEnd)
+        };
+      }
+
+      async function fetchChart(symbol) {
+        const url = `${YAHOO_CHART_URL}${encodeURIComponent(symbol)}?range=${ranges[state.periodType]}&interval=1d`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`${symbol} を取得できませんでした`);
+        const json = await response.json();
+        const result = json.chart?.result?.[0];
+        const quote = result?.indicators?.quote?.[0];
+        if (!quote?.close?.length) throw new Error(`${symbol} に価格データがありません`);
+        const close = quote.close.filter((value) => Number.isFinite(value));
+        const volume = quote.volume.filter((value) => Number.isFinite(value));
+        return { close, volume };
+      }
+
+      function scoreFromChart(symbol, name, close, volume) {
+        const { sourceClose, sourceVolume, evaluationClose } = getWindow(close, volume);
+        if (sourceClose.length < 30) return null;
+
+        const latest = sourceClose[sourceClose.length - 1];
+        const ma5 = mean(sourceClose.slice(-5));
+        const ma25 = mean(sourceClose.slice(-25));
+        const recentBase = sourceClose[sourceClose.length - 6] || sourceClose[0];
+        const recentReturn = ((latest / recentBase) - 1) * 100;
+        const volume5 = mean(sourceVolume.slice(-5));
+        const volume25 = mean(sourceVolume.slice(-25));
+        const volumeChange = volume25 ? ((volume5 / volume25) - 1) * 100 : 0;
+
+        const neutralValueScore = 0;
+        const maScore = ma25 ? clip(((ma5 - ma25) / ma25) / 0.1) : 0;
+        const volumeScore = clip(volumeChange / 100);
+        const momentumScore = clip(recentReturn / 20);
+        const totalWeight = Object.values(state.coefficients).reduce((sum, value) => sum + value, 0) || 1;
+        const rawScore = (
+          state.coefficients.per * neutralValueScore +
+          state.coefficients.pbr * neutralValueScore +
+          state.coefficients.roe * neutralValueScore +
+          state.coefficients.sales_growth * neutralValueScore +
+          state.coefficients.moving_average * maScore +
+          state.coefficients.volume * volumeScore +
+          state.coefficients.momentum * momentumScore
+        ) / totalWeight;
+
+        const k = { weekly: 2.2, monthly: 1.8, half_year: 1.4 }[state.periodType];
+        const probability = 100 / (1 + Math.exp(-k * rawScore));
+        const predictedReturn = probability / 100 * targetReturns[state.periodType];
+        const actualReturn = evaluationClose && evaluationClose.length > 1
+          ? ((evaluationClose[evaluationClose.length - 1] / evaluationClose[0]) - 1) * 100
+          : null;
+
+        return {
+          symbol,
+          name,
+          score: rawScore,
+          probability,
+          predicted_return: predictedReturn,
+          actual_return: actualReturn
+        };
+      }
+
+      async function screenWithBrowserData() {
+        const rows = await Promise.allSettled(
+          universe[state.market].map(async ([symbol, name]) => {
+            const chart = await fetchChart(symbol);
+            return scoreFromChart(symbol, name, chart.close, chart.volume);
+          })
+        );
+        return rows
+          .filter((row) => row.status === "fulfilled" && row.value)
+          .map((row) => row.value)
+          .sort((a, b) => b.probability - a.probability)
+          .slice(0, 10)
+          .map((item, index) => ({ ...item, rank: index + 1 }));
+      }
+
       function makePayload() {
         return {
           market: state.market,
@@ -533,55 +637,32 @@
         };
       }
 
-      async function screen() {
-        const apiBaseUrl = getApiBaseUrl();
-        if (!apiBaseUrl) {
-          setMessage("先にAPI URLを入力して接続確認してください。");
-          return;
-        }
+      async function screenWithExternalApi(apiBaseUrl) {
+        const response = await fetch(`${apiBaseUrl}/api/screen`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(makePayload())
+        });
+        if (!response.ok) throw new Error(await response.text());
+        const json = await response.json();
+        return json.items;
+      }
 
-        setMessage("計算中です...");
+      async function screen() {
+        setMessage("株価データを取得中です...");
         try {
-          const response = await fetch(`${apiBaseUrl}/api/screen`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(makePayload())
-          });
-          if (!response.ok) {
-            const text = await response.text();
-            throw new Error(text || "API error");
-          }
-          const json = await response.json();
-          renderRanking(json.items);
-          setMessage(`APIから株価データを取得しました。対象 ${json.items.length} 銘柄。`);
+          const apiBaseUrl = getApiBaseUrl();
+          const items = apiBaseUrl ? await screenWithExternalApi(apiBaseUrl) : await screenWithBrowserData();
+          if (!items.length) throw new Error("表示できる銘柄がありませんでした");
+          renderRanking(items);
+          setMessage(apiBaseUrl ? "外部APIから取得しました。" : "ブラウザから株価データを自動取得しました。財務指標は外部API未設定時は中立扱いです。");
         } catch (error) {
-          setMessage(`API取得に失敗しました: ${error.message || error}`);
+          setMessage(`取得に失敗しました: ${error.message || error}`);
         }
       }
 
       async function backtest() {
-        const apiBaseUrl = getApiBaseUrl();
-        if (!apiBaseUrl) {
-          setMessage("先にAPI URLを入力して接続確認してください。");
-          return;
-        }
-
-        setMessage("バックテスト中です...");
-        try {
-          const response = await fetch(`${apiBaseUrl}/api/backtest`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(makePayload())
-          });
-          if (!response.ok) {
-            const text = await response.text();
-            throw new Error(text || "API error");
-          }
-          const json = await response.json();
-          setMessage(`Hit ${json.hit_rate}% / Avg ${json.average_return}% / Max DD ${json.max_drawdown}% / N=${json.sample_size}`);
-        } catch (error) {
-          setMessage(`バックテストに失敗しました: ${error.message || error}`);
-        }
+        setMessage("過去期間の実績は、期間ボタンを「過去」に切り替えてスクリーニングすると確認できます。");
       }
 
       function reset() {
@@ -625,8 +706,8 @@
         document.getElementById("screenButton").addEventListener("click", screen);
         document.getElementById("backtestButton").addEventListener("click", backtest);
         document.getElementById("resetButton").addEventListener("click", reset);
-        document.getElementById("saveApiButton").addEventListener("click", checkApi);
-        document.getElementById("apiBaseUrlInput").value = getDefaultApiBaseUrl();
+        document.getElementById("saveApiButton").addEventListener("click", saveApiUrl);
+        document.getElementById("apiBaseUrlInput").value = localStorage.getItem(API_URL_STORAGE_KEY) || "";
 
         renderSlots();
         renderSliders();
