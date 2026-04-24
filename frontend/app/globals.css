@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --safe-top: env(safe-area-inset-top);
+  --safe-bottom: env(safe-area-inset-bottom);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  background:
+    radial-gradient(circle at 30% -10%, rgba(15, 139, 111, 0.16), transparent 38%),
+    linear-gradient(180deg, #f4f6ef 0%, #e8ede0 100%);
+  color: #0e1116;
+  font-family: "Avenir Next", "Hiragino Sans", "Yu Gothic", sans-serif;
+  overscroll-behavior-y: none;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.touch-target {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+.ios-shell {
+  min-height: 100dvh;
+  padding-top: max(12px, var(--safe-top));
+  padding-bottom: max(18px, var(--safe-bottom));
+}
+
+.range {
+  width: 100%;
+  accent-color: #0f8b6f;
+}

@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: stock-scanner-api
+    env: docker
+    rootDir: backend
+    plan: free
+    healthCheckPath: /api/health

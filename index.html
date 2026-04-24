@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Stocks" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="apple-touch-icon" href="./icon.png" />
+    <title>Stock Scanner</title>
+    <style>
+      :root {
+        --ink: #0e1116;
+        --panel: #f7f8f3;
+        --line: #d9dfd0;
+        --accent: #0f8b6f;
+        --gold: #d6a642;
+        --safe-top: env(safe-area-inset-top);
+        --safe-bottom: env(safe-area-inset-bottom);
+      }
+
+      * {
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        background:
+          radial-gradient(circle at 30% -10%, rgba(15, 139, 111, 0.16), transparent 38%),
+          linear-gradient(180deg, #f4f6ef 0%, #e8ede0 100%);
+        color: var(--ink);
+        font-family: "Avenir Next", "Hiragino Sans", "Yu Gothic", sans-serif;
+        overscroll-behavior-y: none;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      .app {
+        width: min(100%, 440px);
+        min-height: 100dvh;
+        margin: 0 auto;
+        padding: max(12px, var(--safe-top)) 16px max(20px, var(--safe-bottom));
+      }
+
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-top: 8px;
+      }
+
+      .eyebrow {
+        margin: 0;
+        color: var(--accent);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 4px 0 0;
+        font-size: 32px;
+        line-height: 1;
+      }
+
+      .card {
+        margin-top: 14px;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.86);
+        box-shadow: 0 18px 55px rgba(13, 20, 30, 0.14);
+      }
+
+      .grid {
+        display: grid;
+        gap: 8px;
+      }
+
+      .grid-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .button {
+        min-height: 44px;
+        border: 0;
+        border-radius: 7px;
+        background: var(--panel);
+        color: var(--ink);
+        font-weight: 900;
+        touch-action: manipulation;
+      }
+
+      .button:active {
+        transform: scale(0.97);
+      }
+
+      .button.active {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .button.dark {
+        background: var(--ink);
+        color: #fff;
+      }
+
+      .button.outline {
+        border: 1px solid var(--line);
+        background: #fff;
+      }
+
+      .period-slots {
+        margin-top: 10px;
+      }
+
+      .period-slots .button {
+        min-height: 48px;
+        border: 1px solid var(--line);
+        background: #fff;
+        font-size: 12px;
+      }
+
+      .period-slots .button.active {
+        border-color: var(--accent);
+        background: rgba(15, 139, 111, 0.1);
+        color: var(--accent);
+      }
+
+      .section-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        font-weight: 900;
+      }
+
+      .slider-row {
+        margin-top: 10px;
+      }
+
+      .slider-meta {
+        display: flex;
+        justify-content: space-between;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .slider-value {
+        color: var(--accent);
+      }
+
+      input[type="range"] {
+        width: 100%;
+        min-height: 36px;
+        accent-color: var(--accent);
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .api-config {
+        display: grid;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .api-input {
+        min-height: 44px;
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: #fff;
+        color: var(--ink);
+        padding: 0 11px;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .message {
+        display: none;
+        margin-top: 12px;
+        padding: 12px;
+        border-radius: 8px;
+        background: #fff7dd;
+        color: #614200;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .message.show {
+        display: block;
+      }
+
+      .ranking {
+        margin-top: 14px;
+        padding-bottom: 24px;
+      }
+
+      .empty {
+        padding: 26px 18px;
+        border: 1px dashed var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.58);
+        color: rgba(14, 17, 22, 0.58);
+        text-align: center;
+        font-size: 14px;
+        font-weight: 800;
+      }
+
+      .stock {
+        margin-top: 8px;
+        padding: 13px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .stock-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .symbol {
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .name {
+        margin-top: 3px;
+        font-size: 15px;
+        font-weight: 900;
+      }
+
+      .probability {
+        text-align: right;
+        font-size: 22px;
+        font-weight: 900;
+      }
+
+      .stock-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 11px;
+      }
+
+      .metric {
+        border-radius: 7px;
+        background: var(--panel);
+        padding: 8px;
+        text-align: center;
+      }
+
+      .metric-label {
+        color: rgba(14, 17, 22, 0.5);
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .metric-value {
+        margin-top: 2px;
+        font-size: 14px;
+        font-weight: 900;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <header class="header">
+        <div>
+          <p class="eyebrow">PWA Scanner</p>
+          <h1>Stock Scanner</h1>
+        </div>
+        <button class="button outline" id="resetButton" aria-label="Reset">Reset</button>
+      </header>
+
+      <section class="card">
+        <div class="grid grid-2" id="marketButtons">
+          <button class="button active" data-market="jp">日本株</button>
+          <button class="button" data-market="us">米国株</button>
+        </div>
+
+        <div class="grid grid-3" id="periodTypeButtons" style="margin-top: 10px">
+          <button class="button active" data-period-type="weekly">週</button>
+          <button class="button" data-period-type="monthly">月</button>
+          <button class="button" data-period-type="half_year">半年</button>
+        </div>
+
+        <div class="grid grid-2 period-slots" id="periodSlotButtons"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-title">
+          <span>係数</span>
+          <span id="targetReturn">目標 +10%</span>
+        </div>
+        <div id="sliders"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-title">
+          <span>API接続</span>
+          <span id="apiStatus">未確認</span>
+        </div>
+        <div class="api-config">
+          <input class="api-input" id="apiBaseUrlInput" placeholder="https://your-api.onrender.com" />
+          <button class="button outline" id="saveApiButton">API URLを保存して接続確認</button>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button class="button dark" id="screenButton">スクリーニング</button>
+        <button class="button outline" id="backtestButton">バックテスト</button>
+      </div>
+
+      <div class="message" id="message"></div>
+      <section class="ranking" id="ranking">
+        <div class="empty">スクリーニングを実行するとトップ10が表示されます。</div>
+      </section>
+    </main>
+
+    <script>
+      const API_URL_STORAGE_KEY = "stockScannerApiBaseUrl";
+
+      const periodSlots = {
+        weekly: [
+          ["p3_to_p2", "3週前→2週前"],
+          ["p2_to_p1", "2週前→1週前"],
+          ["p1_to_now", "1週前→現在"],
+          ["current_to_next", "現在→1週後"]
+        ],
+        monthly: [
+          ["p3_to_p2", "3か月前→2か月前"],
+          ["p2_to_p1", "2か月前→1か月前"],
+          ["p1_to_now", "1か月前→現在"],
+          ["current_to_next", "現在→1か月後"]
+        ],
+        half_year: [
+          ["p3_to_p2", "18か月前→12か月前"],
+          ["p2_to_p1", "12か月前→6か月前"],
+          ["p1_to_now", "6か月前→現在"],
+          ["current_to_next", "現在→6か月後"]
+        ]
+      };
+
+      const targetReturns = {
+        weekly: 10,
+        monthly: 50,
+        half_year: 300
+      };
+
+      const coefficientLabels = {
+        per: "PER",
+        pbr: "PBR",
+        roe: "ROE",
+        sales_growth: "売上成長率",
+        moving_average: "移動平均",
+        volume: "出来高",
+        momentum: "モメンタム"
+      };
+
+      const state = {
+        market: "jp",
+        periodType: "weekly",
+        periodSlot: "current_to_next",
+        coefficients: {
+          per: 0.08,
+          pbr: 0.07,
+          roe: 0.15,
+          sales_growth: 0.16,
+          moving_average: 0.18,
+          volume: 0.16,
+          momentum: 0.2
+        }
+      };
+
+      function setMessage(text) {
+        const el = document.getElementById("message");
+        el.textContent = text;
+        el.classList.toggle("show", Boolean(text));
+      }
+
+      function getDefaultApiBaseUrl() {
+        const saved = localStorage.getItem(API_URL_STORAGE_KEY);
+        if (saved) return saved;
+        if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+          return "http://localhost:8000";
+        }
+        return "";
+      }
+
+      function getApiBaseUrl() {
+        return document.getElementById("apiBaseUrlInput").value.trim().replace(/\/$/, "");
+      }
+
+      async function checkApi() {
+        const apiBaseUrl = getApiBaseUrl();
+        const status = document.getElementById("apiStatus");
+
+        if (!apiBaseUrl) {
+          status.textContent = "URL未設定";
+          setMessage("RenderにデプロイしたFastAPIのURLを入力してください。");
+          return false;
+        }
+
+        try {
+          status.textContent = "確認中";
+          const response = await fetch(`${apiBaseUrl}/api/health`, { method: "GET" });
+          if (!response.ok) throw new Error("health check failed");
+          localStorage.setItem(API_URL_STORAGE_KEY, apiBaseUrl);
+          status.textContent = "接続OK";
+          setMessage("API接続を確認しました。株価データはyfinance経由で取得されます。");
+          return true;
+        } catch (error) {
+          status.textContent = "接続NG";
+          setMessage("APIに接続できません。RenderのURL、またはバックエンド起動状態を確認してください。");
+          return false;
+        }
+      }
+
+      function syncButtons() {
+        document.querySelectorAll("[data-market]").forEach((button) => {
+          button.classList.toggle("active", button.dataset.market === state.market);
+        });
+        document.querySelectorAll("[data-period-type]").forEach((button) => {
+          button.classList.toggle("active", button.dataset.periodType === state.periodType);
+        });
+      }
+
+      function renderSlots() {
+        const root = document.getElementById("periodSlotButtons");
+        root.innerHTML = periodSlots[state.periodType]
+          .map(([value, label]) => {
+            const active = value === state.periodSlot ? " active" : "";
+            return `<button class="button${active}" data-period-slot="${value}">${label}</button>`;
+          })
+          .join("");
+        root.querySelectorAll("[data-period-slot]").forEach((button) => {
+          button.addEventListener("click", () => {
+            state.periodSlot = button.dataset.periodSlot;
+            renderSlots();
+            clearRanking();
+          });
+        });
+      }
+
+      function renderSliders() {
+        const root = document.getElementById("sliders");
+        root.innerHTML = Object.entries(coefficientLabels)
+          .map(([key, label]) => {
+            const value = state.coefficients[key];
+            return `
+              <label class="slider-row">
+                <span class="slider-meta">
+                  <span>${label}</span>
+                  <span class="slider-value" id="value-${key}">${value.toFixed(2)}</span>
+                </span>
+                <input type="range" min="0" max="0.5" step="0.01" value="${value}" data-coefficient="${key}" />
+              </label>
+            `;
+          })
+          .join("");
+        root.querySelectorAll("[data-coefficient]").forEach((input) => {
+          input.addEventListener("input", () => {
+            const key = input.dataset.coefficient;
+            state.coefficients[key] = Number(input.value);
+            document.getElementById(`value-${key}`).textContent = state.coefficients[key].toFixed(2);
+            clearRanking();
+          });
+        });
+      }
+
+      function renderTarget() {
+        document.getElementById("targetReturn").textContent = `目標 +${targetReturns[state.periodType]}%`;
+      }
+
+      function clearRanking() {
+        document.getElementById("ranking").innerHTML = '<div class="empty">スクリーニングを実行するとトップ10が表示されます。</div>';
+        setMessage("");
+      }
+
+      function renderRanking(items) {
+        const root = document.getElementById("ranking");
+        root.innerHTML = items
+          .map((item) => {
+            const actual = item.actual_return === null || item.actual_return === undefined ? "-" : `${item.actual_return.toFixed(1)}%`;
+            return `
+              <article class="stock">
+                <div class="stock-top">
+                  <div>
+                    <div class="symbol">#${item.rank} ${item.symbol}</div>
+                    <div class="name">${item.name}</div>
+                  </div>
+                  <div class="probability">${item.probability.toFixed(1)}%</div>
+                </div>
+                <div class="stock-metrics">
+                  <div class="metric"><div class="metric-label">予測</div><div class="metric-value">${item.predicted_return.toFixed(1)}%</div></div>
+                  <div class="metric"><div class="metric-label">実績</div><div class="metric-value">${actual}</div></div>
+                  <div class="metric"><div class="metric-label">Score</div><div class="metric-value">${item.score.toFixed(2)}</div></div>
+                </div>
+              </article>
+            `;
+          })
+          .join("");
+      }
+
+      function makePayload() {
+        return {
+          market: state.market,
+          period_type: state.periodType,
+          period_slot: state.periodSlot,
+          coefficients: state.coefficients
+        };
+      }
+
+      async function screen() {
+        const apiBaseUrl = getApiBaseUrl();
+        if (!apiBaseUrl) {
+          setMessage("先にAPI URLを入力して接続確認してください。");
+          return;
+        }
+
+        setMessage("計算中です...");
+        try {
+          const response = await fetch(`${apiBaseUrl}/api/screen`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(makePayload())
+          });
+          if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || "API error");
+          }
+          const json = await response.json();
+          renderRanking(json.items);
+          setMessage(`APIから株価データを取得しました。対象 ${json.items.length} 銘柄。`);
+        } catch (error) {
+          setMessage(`API取得に失敗しました: ${error.message || error}`);
+        }
+      }
+
+      async function backtest() {
+        const apiBaseUrl = getApiBaseUrl();
+        if (!apiBaseUrl) {
+          setMessage("先にAPI URLを入力して接続確認してください。");
+          return;
+        }
+
+        setMessage("バックテスト中です...");
+        try {
+          const response = await fetch(`${apiBaseUrl}/api/backtest`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(makePayload())
+          });
+          if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || "API error");
+          }
+          const json = await response.json();
+          setMessage(`Hit ${json.hit_rate}% / Avg ${json.average_return}% / Max DD ${json.max_drawdown}% / N=${json.sample_size}`);
+        } catch (error) {
+          setMessage(`バックテストに失敗しました: ${error.message || error}`);
+        }
+      }
+
+      function reset() {
+        state.market = "jp";
+        state.periodType = "weekly";
+        state.periodSlot = "current_to_next";
+        state.coefficients = {
+          per: 0.08,
+          pbr: 0.07,
+          roe: 0.15,
+          sales_growth: 0.16,
+          moving_average: 0.18,
+          volume: 0.16,
+          momentum: 0.2
+        };
+        syncButtons();
+        renderSlots();
+        renderSliders();
+        renderTarget();
+        clearRanking();
+      }
+
+      function init() {
+        document.querySelectorAll("[data-market]").forEach((button) => {
+          button.addEventListener("click", () => {
+            state.market = button.dataset.market;
+            syncButtons();
+            clearRanking();
+          });
+        });
+        document.querySelectorAll("[data-period-type]").forEach((button) => {
+          button.addEventListener("click", () => {
+            state.periodType = button.dataset.periodType;
+            state.periodSlot = "current_to_next";
+            syncButtons();
+            renderSlots();
+            renderTarget();
+            clearRanking();
+          });
+        });
+        document.getElementById("screenButton").addEventListener("click", screen);
+        document.getElementById("backtestButton").addEventListener("click", backtest);
+        document.getElementById("resetButton").addEventListener("click", reset);
+        document.getElementById("saveApiButton").addEventListener("click", checkApi);
+        document.getElementById("apiBaseUrlInput").value = getDefaultApiBaseUrl();
+
+        renderSlots();
+        renderSliders();
+        renderTarget();
+
+        if ("serviceWorker" in navigator) {
+          navigator.serviceWorker.register("./service-worker.js").catch(() => undefined);
+        }
+      }
+
+      init();
+    </script>
+  </body>
+</html>
