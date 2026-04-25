@@ -1,5 +1,6 @@
 import json
 import math
+import io
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.request import urlopen
@@ -154,7 +155,7 @@ def fetch_jpx_universe() -> list[tuple[str, str]]:
         import pandas as pd
 
         with urlopen(JPX_LIST_URL, timeout=30) as response:
-            frame = pd.read_excel(response)
+            frame = pd.read_excel(io.BytesIO(response.read()))
 
         code_col = find_column(frame.columns, ["コード", "Code"], 0)
         name_col = find_column(frame.columns, ["銘柄名", "Company", "Name"], 1)
@@ -199,11 +200,13 @@ def fetch_jpx_universe() -> list[tuple[str, str]]:
 def build_jp_universe() -> list[tuple[str, str]]:
     universe = []
     seen = set()
-    for symbol, name in fetch_jpx_universe() or JP_SEED:
+    fetched = fetch_jpx_universe()
+    source = fetched or JP_SEED
+    for symbol, name in source:
         if symbol not in seen:
             universe.append((symbol, name))
             seen.add(symbol)
-        if len(universe) >= JP_FALLBACK_COUNT:
+        if not fetched and len(universe) >= JP_FALLBACK_COUNT:
             break
 
     # Local fallback only. GitHub Actions replaces this with the JPX official list.

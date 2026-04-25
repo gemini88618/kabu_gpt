@@ -402,7 +402,7 @@
           const items = apiBaseUrl ? await screenWithExternalApi(apiBaseUrl) : await screenWithBrowserData();
           if (!items.length) throw new Error("表示できる銘柄がありませんでした");
           renderRanking(items);
-          setMessage(`${state.market === "jp" ? "日本株" : "米国株"}の推奨ユニバースから${items.length}銘柄を表示しています。トレンド、出来高、過熱感、値動き安定性を組み合わせています。`);
+          setMessage(`${state.market === "jp" ? "JPX普通株全体" : "米国株500銘柄"}から上位${items.length}銘柄を表示しています。係数変更はランキング計算に反映されます。`);
         } catch (error) {
           setMessage(`取得に失敗しました: ${error.message || error}`);
         }

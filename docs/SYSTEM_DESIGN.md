@@ -44,7 +44,7 @@ The app does not scan every listed stock. Instead, it uses a broad recommended u
 | Japan | All ordinary domestic equities fetched from the JPX listed company universe |
 | United States | 500 large-cap and mid/large-cap growth, AI/semiconductor, software, fintech, healthcare, industrial, travel, energy, consumer, financial, utility, and real-estate names |
 
-The Japan universe is now designed to follow the JPX official listed company file rather than a hand-picked list. The US universe remains capped at 500 names for responsiveness and data size.
+The Japan universe follows the JPX official listed company file rather than a hand-picked list. In the latest generated dataset this is 3668 Japanese equities. The US universe remains capped at 500 names for responsiveness and data size.
 
 ### Factors
 
