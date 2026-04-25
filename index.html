@@ -133,19 +133,19 @@
       };
 
       const coefficientLabels = {
-        per: "PER",
-        pbr: "PBR",
-        roe: "ROE",
-        sales_growth: "売上成長率",
-        moving_average: "移動平均",
-        volume: "出来高",
+        per: "押し目余地",
+        pbr: "過熱回避",
+        roe: "値動き安定",
+        sales_growth: "上昇継続力",
+        moving_average: "トレンド",
+        volume: "出来高確認",
         momentum: "モメンタム"
       };
 
       const defaultCoefficientPresets = {
-        weekly: { per: 0.02, pbr: 0.02, roe: 0.05, sales_growth: 0.06, moving_average: 0.30, volume: 0.25, momentum: 0.30 },
-        monthly: { per: 0.04, pbr: 0.03, roe: 0.10, sales_growth: 0.13, moving_average: 0.34, volume: 0.16, momentum: 0.20 },
-        half_year: { per: 0.06, pbr: 0.05, roe: 0.15, sales_growth: 0.20, moving_average: 0.36, volume: 0.08, momentum: 0.10 }
+        weekly: { per: 0.08, pbr: 0.12, roe: 0.08, sales_growth: 0.10, moving_average: 0.22, volume: 0.18, momentum: 0.22 },
+        monthly: { per: 0.10, pbr: 0.10, roe: 0.12, sales_growth: 0.18, moving_average: 0.24, volume: 0.12, momentum: 0.14 },
+        half_year: { per: 0.08, pbr: 0.12, roe: 0.18, sales_growth: 0.22, moving_average: 0.26, volume: 0.06, momentum: 0.08 }
       };
 
       const fallbackUniverse = {
@@ -167,6 +167,20 @@
       function mean(values) {
         const valid = values.filter(Number.isFinite);
         return valid.length ? valid.reduce((sum, value) => sum + value, 0) / valid.length : 0;
+      }
+
+      function stdev(values) {
+        const avg = mean(values);
+        const valid = values.filter(Number.isFinite);
+        if (valid.length < 2) return 0;
+        return Math.sqrt(mean(valid.map((value) => (value - avg) ** 2)));
+      }
+
+      function pctReturn(values, days) {
+        if (values.length <= days) return 0;
+        const latest = values[values.length - 1];
+        const base = values[values.length - 1 - days];
+        return base ? ((latest / base) - 1) * 100 : 0;
       }
 
       function setMessage(text) {
@@ -269,18 +283,40 @@
         const latest = sourceClose[sourceClose.length - 1];
         const ma5 = mean(sourceClose.slice(-5));
         const ma25 = mean(sourceClose.slice(-25));
-        const recentBase = sourceClose[sourceClose.length - 6] || sourceClose[0];
-        const recentReturn = ((latest / recentBase) - 1) * 100;
+        const ma75 = mean(sourceClose.slice(-75));
+        const recentReturn = pctReturn(sourceClose, 5);
+        const monthlyReturn = pctReturn(sourceClose, 21);
+        const quarterlyReturn = pctReturn(sourceClose, 63);
+        const halfYearReturn = pctReturn(sourceClose, 126);
         const volume5 = mean(sourceVolume.slice(-5));
         const volume25 = mean(sourceVolume.slice(-25));
         const volumeChange = volume25 ? ((volume5 / volume25) - 1) * 100 : 0;
-        const neutralValueScore = 0;
-        const maScore = ma25 ? clip(((ma5 - ma25) / ma25) / 0.1) : 0;
+        const recentReturns = sourceClose.slice(-25).map((value, index, values) => index === 0 ? 0 : ((value / values[index - 1]) - 1) * 100).slice(1);
+        const volatility = stdev(recentReturns);
+        const high60 = Math.max(...sourceClose.slice(-60));
+        const low60 = Math.min(...sourceClose.slice(-60));
+        const distanceFromHigh = high60 ? ((latest / high60) - 1) * 100 : 0;
+        const distanceFromLow = low60 ? ((latest / low60) - 1) * 100 : 0;
+
+        const dipScore = clip((8 - Math.max(0, distanceFromHigh * -1)) / 8);
+        const heatScore = clip((18 - Math.max(0, monthlyReturn)) / 18);
+        const stabilityScore = clip((4.5 - volatility) / 4.5);
+        const continuationScore = clip((monthlyReturn * 0.45 + quarterlyReturn * 0.35 + halfYearReturn * 0.20) / 35);
+        const trendScore = clip((((ma5 / ma25) - 1) * 5 + ((ma25 / ma75) - 1) * 3) / 0.8);
         const volumeScore = clip(volumeChange / 100);
-        const momentumScore = clip(recentReturn / 20);
+        const breakoutScore = clip((distanceFromHigh + 4) / 8);
+        const momentumScore = clip((recentReturn * 0.55 + monthlyReturn * 0.30 + breakoutScore * 15) / 20);
         const weights = state.coefficients;
         const totalWeight = Object.values(weights).reduce((sum, value) => sum + value, 0) || 1;
-        const rawScore = (weights.per * neutralValueScore + weights.pbr * neutralValueScore + weights.roe * neutralValueScore + weights.sales_growth * neutralValueScore + weights.moving_average * maScore + weights.volume * volumeScore + weights.momentum * momentumScore) / totalWeight;
+        const rawScore = (
+          weights.per * dipScore +
+          weights.pbr * heatScore +
+          weights.roe * stabilityScore +
+          weights.sales_growth * continuationScore +
+          weights.moving_average * trendScore +
+          weights.volume * volumeScore +
+          weights.momentum * momentumScore
+        ) / totalWeight;
         const k = { weekly: 2.2, monthly: 1.8, half_year: 1.4 }[state.periodType];
         const probability = 100 / (1 + Math.exp(-k * rawScore));
         const predictedReturn = probability / 100 * targetReturns[state.periodType];
@@ -321,7 +357,7 @@
           const items = apiBaseUrl ? await screenWithExternalApi(apiBaseUrl) : await screenWithBrowserData();
           if (!items.length) throw new Error("表示できる銘柄がありませんでした");
           renderRanking(items);
-          setMessage("期待上昇率でランキングしました。財務指標は外部API未設定時は中立扱いです。");
+          setMessage("期待上昇率でランキングしました。トレンド、出来高、過熱感、値動き安定性を組み合わせています。");
         } catch (error) {
           setMessage(`取得に失敗しました: ${error.message || error}`);
         }
