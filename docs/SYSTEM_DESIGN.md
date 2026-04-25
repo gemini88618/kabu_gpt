@@ -41,10 +41,10 @@ The app does not scan every listed stock. Instead, it uses a broad recommended u
 
 | Market | Coverage |
 |---|---:|
-| Japan | 1000 names selected from the JPX listed company universe, prioritizing ordinary domestic equities |
+| Japan | All ordinary domestic equities fetched from the JPX listed company universe |
 | United States | 500 large-cap and mid/large-cap growth, AI/semiconductor, software, fintech, healthcare, industrial, travel, energy, consumer, financial, utility, and real-estate names |
 
-This is intentionally broader than a top-10 watchlist, but still narrower than the full listed universe. The current coverage is 1500 names total. The goal is to catch practical candidates while keeping the static PWA responsive on iPhone.
+The Japan universe is now designed to follow the JPX official listed company file rather than a hand-picked list. The US universe remains capped at 500 names for responsiveness and data size.
 
 ### Factors
 

@@ -48,6 +48,8 @@
       .slider-row { display: block; margin-top: 10px; }
       .slider-meta { display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; }
       .slider-value { color: var(--accent); }
+      .factor-help { margin-top: 4px; color: rgba(14,17,22,.58); font-size: 11px; line-height: 1.45; }
+      .help-hidden .factor-help { display: none; }
       input[type="range"] { width: 100%; min-height: 36px; accent-color: var(--accent); }
       .actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin-top: 14px; }
       .advanced { margin-top: 14px; color: rgba(14,17,22,.68); font-size: 12px; font-weight: 800; }
@@ -97,6 +99,7 @@
           <span>係数</span>
           <span id="targetReturn">短期急騰 / 目標 +10%</span>
         </div>
+        <button class="button outline" id="toggleHelpButton" style="width:100%;margin-bottom:8px">係数の解説を非表示</button>
         <div id="sliders"></div>
       </section>
 
@@ -148,6 +151,16 @@
         half_year: { per: 0.06, pbr: 0.10, roe: 0.18, sales_growth: 0.28, moving_average: 0.26, volume: 0.05, momentum: 0.07 }
       };
 
+      const coefficientHelp = {
+        per: "上昇トレンド内の健全な押し目や高値更新余地を評価します。",
+        pbr: "短期で上がりすぎた銘柄を追いかけすぎないように調整します。",
+        roe: "値動きの荒さや大きな下落を抑え、安定した銘柄を評価します。",
+        sales_growth: "1か月、3か月、半年の上昇が続いているかを評価します。",
+        moving_average: "5日、25日、75日移動平均の上向き整列を評価します。",
+        volume: "上昇に出来高増加が伴っているかを評価します。",
+        momentum: "直近1週、2週、1か月の勢いと高値ブレイク感を評価します。"
+      };
+
       const fallbackUniverse = {
         jp: [["7203.T", "トヨタ自動車"], ["6758.T", "ソニーグループ"], ["8035.T", "東京エレクトロン"], ["9984.T", "ソフトバンクグループ"], ["6861.T", "キーエンス"], ["7974.T", "任天堂"], ["6098.T", "リクルートホールディングス"], ["4063.T", "信越化学工業"], ["6501.T", "日立製作所"], ["8058.T", "三菱商事"], ["8306.T", "三菱UFJフィナンシャル・グループ"], ["9432.T", "日本電信電話"], ["9983.T", "ファーストリテイリング"], ["6857.T", "アドバンテスト"], ["7011.T", "三菱重工業"], ["5803.T", "フジクラ"], ["8001.T", "伊藤忠商事"], ["4568.T", "第一三共"], ["6702.T", "富士通"], ["4661.T", "オリエンタルランド"]],
         us: [["NVDA", "NVIDIA"], ["AAPL", "Apple"], ["MSFT", "Microsoft"], ["AMZN", "Amazon"], ["GOOGL", "Alphabet"], ["META", "Meta Platforms"], ["TSLA", "Tesla"], ["AVGO", "Broadcom"], ["AMD", "Advanced Micro Devices"], ["NFLX", "Netflix"], ["CRM", "Salesforce"], ["COST", "Costco"], ["PLTR", "Palantir Technologies"], ["CRWD", "CrowdStrike"], ["PANW", "Palo Alto Networks"], ["COIN", "Coinbase"], ["SMCI", "Super Micro Computer"], ["ASML", "ASML Holding"], ["LLY", "Eli Lilly"], ["V", "Visa"]]
@@ -159,6 +172,7 @@
         periodSlot: "current_to_next",
         coefficients: { ...defaultCoefficientPresets.weekly }
       };
+      let showFactorHelp = localStorage.getItem("showFactorHelp") !== "false";
 
       function clip(value, low = -1, high = 1) {
         return Number.isFinite(value) ? Math.max(low, Math.min(high, value)) : 0;
@@ -241,8 +255,10 @@
         const root = document.getElementById("sliders");
         root.innerHTML = Object.entries(coefficientLabels).map(([key, label]) => {
           const value = state.coefficients[key];
-          return `<label class="slider-row"><span class="slider-meta"><span>${label}</span><span class="slider-value" id="value-${key}">${value.toFixed(2)}</span></span><input type="range" min="0" max="0.5" step="0.01" value="${value}" data-coefficient="${key}" /></label>`;
+          return `<label class="slider-row"><span class="slider-meta"><span>${label}</span><span class="slider-value" id="value-${key}">${value.toFixed(2)}</span></span><div class="factor-help">${coefficientHelp[key]}</div><input type="range" min="0" max="0.8" step="0.01" value="${value}" data-coefficient="${key}" /></label>`;
         }).join("");
+        root.classList.toggle("help-hidden", !showFactorHelp);
+        document.getElementById("toggleHelpButton").textContent = showFactorHelp ? "係数の解説を非表示" : "係数の解説を表示";
         root.querySelectorAll("[data-coefficient]").forEach((input) => {
           input.addEventListener("input", () => {
             const key = input.dataset.coefficient;
@@ -365,7 +381,7 @@
             return scoreFromChart(symbol, name, chart.close, chart.volume);
           }));
         }
-        return rows.filter((row) => row.status === "fulfilled" && row.value).map((row) => row.value).sort((a, b) => b.predicted_return - a.predicted_return).slice(0, 10).map((item, index) => ({ ...item, rank: index + 1 }));
+        return rows.filter((row) => row.status === "fulfilled" && row.value).map((row) => row.value).sort((a, b) => b.predicted_return - a.predicted_return).slice(0, 30).map((item, index) => ({ ...item, rank: index + 1 }));
       }
 
       function makePayload() {
@@ -431,6 +447,11 @@
         document.getElementById("screenButton").addEventListener("click", screen);
         document.getElementById("backtestButton").addEventListener("click", backtest);
         document.getElementById("resetButton").addEventListener("click", reset);
+        document.getElementById("toggleHelpButton").addEventListener("click", () => {
+          showFactorHelp = !showFactorHelp;
+          localStorage.setItem("showFactorHelp", String(showFactorHelp));
+          renderSliders();
+        });
         document.getElementById("saveApiButton").addEventListener("click", saveApiUrl);
         document.getElementById("apiBaseUrlInput").value = localStorage.getItem(API_URL_STORAGE_KEY) || "";
         renderSlots();

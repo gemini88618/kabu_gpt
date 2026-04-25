@@ -5,22 +5,22 @@ from pathlib import Path
 from urllib.request import urlopen
 
 JPX_LIST_URL = "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdivq0000001vg2-att/data_j.xls"
-JP_TARGET_COUNT = 1000
+JP_FALLBACK_COUNT = 1000
 US_TARGET_COUNT = 500
 
 JP_SEED = [
-    ("7203.T", "トヨタ自動車"),
-    ("6758.T", "ソニーグループ"),
-    ("8035.T", "東京エレクトロン"),
-    ("9984.T", "ソフトバンクグループ"),
-    ("6861.T", "キーエンス"),
-    ("7974.T", "任天堂"),
-    ("6098.T", "リクルートホールディングス"),
-    ("4063.T", "信越化学工業"),
-    ("6501.T", "日立製作所"),
-    ("8058.T", "三菱商事"),
-    ("8306.T", "三菱UFJフィナンシャル・グループ"),
-    ("9432.T", "日本電信電話"),
+    ("7203.T", "Toyota Motor"),
+    ("6758.T", "Sony Group"),
+    ("8035.T", "Tokyo Electron"),
+    ("9984.T", "SoftBank Group"),
+    ("6861.T", "Keyence"),
+    ("7974.T", "Nintendo"),
+    ("6098.T", "Recruit Holdings"),
+    ("4063.T", "Shin-Etsu Chemical"),
+    ("6501.T", "Hitachi"),
+    ("8058.T", "Mitsubishi Corp"),
+    ("8306.T", "Mitsubishi UFJ Financial Group"),
+    ("9432.T", "Nippon Telegraph and Telephone"),
 ]
 
 US_SEED = [
@@ -141,6 +141,14 @@ def synthetic_history(symbol: str, index: int, days: int = 560) -> dict:
     return {"symbol": symbol, "dates": dates, "close": close, "volume": volume}
 
 
+def find_column(columns, candidates: list[str], fallback_index: int):
+    normalized = {str(col): col for col in columns}
+    for text, original in normalized.items():
+        if any(candidate in text for candidate in candidates):
+            return original
+    return list(columns)[fallback_index]
+
+
 def fetch_jpx_universe() -> list[tuple[str, str]]:
     try:
         import pandas as pd
@@ -148,32 +156,42 @@ def fetch_jpx_universe() -> list[tuple[str, str]]:
         with urlopen(JPX_LIST_URL, timeout=30) as response:
             frame = pd.read_excel(response)
 
-        code_col = next(col for col in frame.columns if "コード" in str(col))
-        name_col = next(col for col in frame.columns if "銘柄名" in str(col))
-        market_col = next(col for col in frame.columns if "市場・商品区分" in str(col))
+        code_col = find_column(frame.columns, ["コード", "Code"], 0)
+        name_col = find_column(frame.columns, ["銘柄名", "Company", "Name"], 1)
+        market_col = find_column(frame.columns, ["市場", "Market", "商品区分"], 3)
 
-        market_priority = {"プライム": 0, "スタンダード": 1, "グロース": 2}
+        priority_words = [
+            ("プライム", 0),
+            ("Prime", 0),
+            ("スタンダード", 1),
+            ("Standard", 1),
+            ("グロース", 2),
+            ("Growth", 2),
+        ]
 
         def priority(value: str) -> int:
             text = str(value)
-            for key, rank in market_priority.items():
+            for key, rank in priority_words:
                 if key in text:
                     return rank
             return 9
 
         rows = []
         for _, row in frame.iterrows():
-            code = str(row[code_col]).strip()
+            raw_code = str(row[code_col]).strip().split(".")[0]
+            code = raw_code.zfill(4)
             name = str(row[name_col]).strip()
             market = str(row[market_col]).strip()
             if not code.isdigit() or len(code) != 4:
                 continue
-            if "ETF" in market or "ETN" in market or "REIT" in market or "インフラ" in market:
+            if any(word in market.upper() for word in ["ETF", "ETN", "REIT"]):
+                continue
+            if "インフラ" in market:
                 continue
             rows.append((priority(market), f"{code}.T", name))
 
         rows.sort(key=lambda item: (item[0], item[1]))
-        return [(symbol, name) for _, symbol, name in rows[:JP_TARGET_COUNT]]
+        return [(symbol, name) for _, symbol, name in rows]
     except Exception:
         return []
 
@@ -185,19 +203,19 @@ def build_jp_universe() -> list[tuple[str, str]]:
         if symbol not in seen:
             universe.append((symbol, name))
             seen.add(symbol)
-        if len(universe) >= JP_TARGET_COUNT:
+        if len(universe) >= JP_FALLBACK_COUNT:
             break
 
-    # Offline fallback for local generation. GitHub Actions replaces this with the JPX official list.
+    # Local fallback only. GitHub Actions replaces this with the JPX official list.
     code = 1300
-    while len(universe) < JP_TARGET_COUNT:
+    while len(universe) < JP_FALLBACK_COUNT:
         symbol = f"{code}.T"
         if symbol not in seen:
-            universe.append((symbol, symbol))
+            universe.append((symbol, f"JPX {code}"))
             seen.add(symbol)
         code += 1
 
-    return universe[:JP_TARGET_COUNT]
+    return universe
 
 
 def build_us_universe() -> list[tuple[str, str]]:
@@ -243,7 +261,7 @@ def build_market_data() -> dict:
     output = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source": "jpx_yfinance_with_synthetic_fallback",
-        "universe_policy": "jp_1000_jpx_list_us_500_large_liquid_universe",
+        "universe_policy": "jp_all_jpx_ordinary_equities_us_500_large_liquid_universe",
         "markets": {},
     }
 
