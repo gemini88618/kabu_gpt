@@ -210,6 +210,38 @@ SYMBOLS = {
     ],
 }
 
+ADDITIONAL_US_TICKERS = """
+ABBV ABT ACN AEP AIG AJG ALB ALGN ALL AME AMP AMT AON APD APTV ARE ATO
+AVB AWK AXP AZO BAX BDX BEN BG BIIB BIO BK BKR BMY BR BRO BSX BWA BX BXP
+C CAG CAH CARR CB CBOE CBRE CCI CCL CDNS CDW CE CERN CFG CHD CI CINF CL
+CLX CMA CME CMG CMI CMS CNC CNP COO COTY CPB CPRT CPT CTRA CTSH CTVA CVS
+D DHI DHR DLR DOV DOW DPZ DRI DTE DUK DVA DVN DXCM EA EBAY ECL ED EFX
+EIX EL ELV EMN EMR ENPH EOG EPAM EQIX EQR ES ESS ETN ETR ETSY EVRG EW
+EXC EXPD EXPE F FANG FAST FCX FDX FE FFIV FIS FISV FITB FMC FOX FOXA
+FRT FSLR FTNT FTV GD GDDY GEN GILD GIS GL GLW GM GNRC GPC GPN GRMN
+GWW HAL HAS HBAN HCA HES HIG HLT HOLX HPQ HRL HSIC HST HSY HUM HWM ICE
+IDXX IEX IFF ILMN INCY INTC IP IPG IQV IR IRM IT ITW IVZ J JCI JKHY JNJ
+JNPR K KDP KEY KEYS KHC KIM KMB KMI KR LDOS LEN LH LKQ LNT LULU LUV LVS
+LW LYB MAA MAS MCHP MCK MDLZ MDT MET MGM MHK MKC MKTX MLM MMC MMM MNST
+MO MOS MPC MTD NDAQ NDSN NEE NEM NI NOC NRG NSC NTAP NTRS NUE NVR NXPI
+ODFL OKE OMC OXY PAYC PAYX PCAR PCG PFG PGR PH PHM PKG PNC PNR PNW PODD
+POOL PPG PPL PRU PSA PSX PTC PWR PXD QRVO ROK ROL ROP ROST SBNY SBUX
+SEDG SEE SJM SLB SNA SO STT STX SWK SWKS SYF SYK SYY TAP TDG TEL TER
+TFC TFX TJX TMO TMUS TROW TRV TSCO TT TTWO TXT UDR UHS ULTA UNP UPS URI
+VFC VICI VLO VMC VRSK VRSN VTR VTRS VZ WAB WAT WBA WBD WDC WELL WFC WHR
+WM WRB WST WY WYNN XEL XYL YUM ZBH ZBRA ZION ZTS
+""".split()
+
+
+def normalize_symbol_universe() -> None:
+    existing = {symbol for symbol, _ in SYMBOLS["us"]}
+    for ticker in ADDITIONAL_US_TICKERS:
+        if ticker not in existing:
+            SYMBOLS["us"].append((ticker, ticker))
+            existing.add(ticker)
+        if len(SYMBOLS["jp"]) + len(SYMBOLS["us"]) >= 500:
+            break
+
 
 def synthetic_history(symbol: str, index: int, days: int = 560) -> dict:
     start = datetime.now(timezone.utc).date() - timedelta(days=days * 1.45)
@@ -253,6 +285,8 @@ def fetch_yfinance_history(symbol: str) -> dict | None:
 
 
 def build_market_data() -> dict:
+    normalize_symbol_universe()
+
     output = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source": "yfinance_with_synthetic_fallback",
