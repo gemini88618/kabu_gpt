@@ -21,7 +21,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install yfinance pandas numpy
+        run: pip install yfinance pandas numpy openpyxl xlrd
 
       - name: Fetch market data
         run: python scripts/update_market_data.py
