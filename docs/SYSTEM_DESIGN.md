@@ -23,6 +23,17 @@ flowchart TB
 
 The GitHub Pages version uses price and volume data that is refreshed by GitHub Actions. Since static hosting cannot reliably fetch all financial data from the browser, the default model focuses on factors that can be measured from daily price and volume history.
 
+## Coverage Universe
+
+The app does not scan every listed stock. Instead, it uses a broad recommended universe designed to reduce missed candidates while avoiding illiquid noise.
+
+| Market | Coverage |
+|---|---:|
+| Japan | 60 liquid large-cap, semiconductor, financial, trading-company, industrial, healthcare, consumer, and real-estate names |
+| United States | 62 large-cap growth, Nasdaq-style innovation, AI/semiconductor, software, fintech, healthcare, and consumer names |
+
+This is intentionally broader than a top-10 watchlist, but narrower than the full listed universe. The goal is to catch practical candidates with enough liquidity for screening.
+
 ### Factors
 
 | UI Label | Internal Factor | Purpose |

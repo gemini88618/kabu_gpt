@@ -149,8 +149,8 @@
       };
 
       const fallbackUniverse = {
-        jp: [["7203.T", "トヨタ自動車"], ["6758.T", "ソニーグループ"], ["8035.T", "東京エレクトロン"], ["9984.T", "ソフトバンクグループ"], ["6861.T", "キーエンス"], ["7974.T", "任天堂"], ["6098.T", "リクルートホールディングス"], ["4063.T", "信越化学工業"], ["6501.T", "日立製作所"], ["8058.T", "三菱商事"], ["8306.T", "三菱UFJフィナンシャル・グループ"], ["9432.T", "日本電信電話"]],
-        us: [["NVDA", "NVIDIA"], ["MSFT", "Microsoft"], ["AAPL", "Apple"], ["AMZN", "Amazon"], ["GOOGL", "Alphabet"], ["META", "Meta Platforms"], ["TSLA", "Tesla"], ["AVGO", "Broadcom"], ["AMD", "Advanced Micro Devices"], ["NFLX", "Netflix"], ["CRM", "Salesforce"], ["COST", "Costco"]]
+        jp: [["7203.T", "トヨタ自動車"], ["6758.T", "ソニーグループ"], ["8035.T", "東京エレクトロン"], ["9984.T", "ソフトバンクグループ"], ["6861.T", "キーエンス"], ["7974.T", "任天堂"], ["6098.T", "リクルートホールディングス"], ["4063.T", "信越化学工業"], ["6501.T", "日立製作所"], ["8058.T", "三菱商事"], ["8306.T", "三菱UFJフィナンシャル・グループ"], ["9432.T", "日本電信電話"], ["9983.T", "ファーストリテイリング"], ["6857.T", "アドバンテスト"], ["7011.T", "三菱重工業"], ["5803.T", "フジクラ"], ["8001.T", "伊藤忠商事"], ["4568.T", "第一三共"], ["6702.T", "富士通"], ["4661.T", "オリエンタルランド"]],
+        us: [["NVDA", "NVIDIA"], ["AAPL", "Apple"], ["MSFT", "Microsoft"], ["AMZN", "Amazon"], ["GOOGL", "Alphabet"], ["META", "Meta Platforms"], ["TSLA", "Tesla"], ["AVGO", "Broadcom"], ["AMD", "Advanced Micro Devices"], ["NFLX", "Netflix"], ["CRM", "Salesforce"], ["COST", "Costco"], ["PLTR", "Palantir Technologies"], ["CRWD", "CrowdStrike"], ["PANW", "Palo Alto Networks"], ["COIN", "Coinbase"], ["SMCI", "Super Micro Computer"], ["ASML", "ASML Holding"], ["LLY", "Eli Lilly"], ["V", "Visa"]]
       };
 
       const state = {
@@ -357,7 +357,7 @@
           const items = apiBaseUrl ? await screenWithExternalApi(apiBaseUrl) : await screenWithBrowserData();
           if (!items.length) throw new Error("表示できる銘柄がありませんでした");
           renderRanking(items);
-          setMessage("期待上昇率でランキングしました。トレンド、出来高、過熱感、値動き安定性を組み合わせています。");
+          setMessage(`${state.market === "jp" ? "日本株" : "米国株"}の推奨ユニバースから${items.length}銘柄を表示しています。トレンド、出来高、過熱感、値動き安定性を組み合わせています。`);
         } catch (error) {
           setMessage(`取得に失敗しました: ${error.message || error}`);
         }
