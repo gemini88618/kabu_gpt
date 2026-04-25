@@ -60,6 +60,8 @@
       .ranking { margin-top: 14px; padding-bottom: 24px; }
       .empty { padding: 26px 18px; border: 1px dashed var(--line); border-radius: 8px; background: rgba(255,255,255,.58); color: rgba(14,17,22,.58); text-align: center; font-size: 14px; font-weight: 800; }
       .stock { margin-top: 8px; padding: 13px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+      .stock summary { list-style: none; cursor: pointer; }
+      .stock summary::-webkit-details-marker { display: none; }
       .stock-top { display: flex; justify-content: space-between; gap: 12px; }
       .symbol { color: var(--accent); font-size: 12px; font-weight: 900; }
       .name { margin-top: 3px; font-size: 15px; font-weight: 900; }
@@ -69,6 +71,10 @@
       .metric { border-radius: 7px; background: var(--panel); padding: 8px; text-align: center; }
       .metric-label { color: rgba(14,17,22,.5); font-size: 10px; font-weight: 800; text-transform: uppercase; }
       .metric-value { margin-top: 2px; font-size: 14px; font-weight: 900; }
+      .reason-grid { display: grid; gap: 6px; margin-top: 10px; }
+      .reason-row { display: grid; grid-template-columns: 88px 1fr 46px; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; }
+      .bar { height: 8px; overflow: hidden; border-radius: 999px; background: #e7eadf; }
+      .bar span { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
     </style>
   </head>
   <body>
@@ -90,6 +96,10 @@
           <button class="button active" data-period-type="weekly">週</button>
           <button class="button" data-period-type="monthly">月</button>
           <button class="button" data-period-type="half_year">半年</button>
+        </div>
+        <div class="grid grid-2" id="universeButtons" style="margin-top:10px">
+          <button class="button active" data-universe="all">全株式</button>
+          <button class="button" data-universe="top1000">1000株</button>
         </div>
         <div class="grid grid-2 period-slots" id="periodSlotButtons"></div>
       </section>
@@ -168,6 +178,7 @@
 
       const state = {
         market: "jp",
+        universeMode: "all",
         periodType: "weekly",
         periodSlot: "current_to_next",
         coefficients: { ...defaultCoefficientPresets.weekly }
@@ -237,6 +248,8 @@
       function syncButtons() {
         document.querySelectorAll("[data-market]").forEach((button) => button.classList.toggle("active", button.dataset.market === state.market));
         document.querySelectorAll("[data-period-type]").forEach((button) => button.classList.toggle("active", button.dataset.periodType === state.periodType));
+        document.querySelectorAll("[data-universe]").forEach((button) => button.classList.toggle("active", button.dataset.universe === state.universeMode));
+        document.getElementById("universeButtons").style.display = state.market === "jp" ? "grid" : "none";
       }
 
       function renderSlots() {
@@ -281,7 +294,8 @@
       function renderRanking(items) {
         document.getElementById("ranking").innerHTML = items.map((item) => {
           const actual = item.actual_return == null ? "-" : `${item.actual_return.toFixed(1)}%`;
-          return `<article class="stock"><div class="stock-top"><div><div class="symbol">#${item.rank} ${item.symbol}</div><div class="name">${item.name}</div></div><div><div class="main-value">${item.predicted_return.toFixed(1)}%</div><div class="main-label">期待上昇率</div></div></div><div class="stock-metrics"><div class="metric"><div class="metric-label">買い優先度</div><div class="metric-value">${item.grade}</div></div><div class="metric"><div class="metric-label">実績</div><div class="metric-value">${actual}</div></div></div></article>`;
+          const reasons = item.reasons.map((reason) => `<div class="reason-row"><span>${reason.label}</span><div class="bar"><span style="width:${reason.percent}%"></span></div><span>${reason.value}</span></div>`).join("");
+          return `<details class="stock"><summary><div class="stock-top"><div><div class="symbol">#${item.rank} ${item.symbol}</div><div class="name">${item.name}</div></div><div><div class="main-value">${item.predicted_return.toFixed(1)}%</div><div class="main-label">期待上昇率</div></div></div><div class="stock-metrics"><div class="metric"><div class="metric-label">買い優先度</div><div class="metric-value">${item.grade}</div></div><div class="metric"><div class="metric-label">実績</div><div class="metric-value">${actual}</div></div></div></summary><div class="reason-grid">${reasons}</div></details>`;
         }).join("");
       }
 
@@ -367,14 +381,28 @@
         const predictedReturn = probability / 100 * targetReturns[state.periodType];
         const grade = predictedReturn >= targetReturns[state.periodType] * 0.72 ? "強" : predictedReturn >= targetReturns[state.periodType] * 0.58 ? "中" : "弱";
         const actualReturn = evaluationClose && evaluationClose.length > 1 ? ((evaluationClose[evaluationClose.length - 1] / evaluationClose[0]) - 1) * 100 : null;
-        return { symbol, name, score: rawScore, probability, predicted_return: predictedReturn, grade, actual_return: actualReturn };
+        const reasonScores = [
+          ["押し目", dipScore],
+          ["過熱回避", heatScore],
+          ["安定性", stabilityScore],
+          ["継続力", continuationScore],
+          ["トレンド", trendScore],
+          ["出来高", volumeScore],
+          ["勢い", momentumScore]
+        ].map(([label, value]) => ({
+          label,
+          value: Number(value).toFixed(2),
+          percent: Math.round((Number(value) + 1) * 50)
+        }));
+        return { symbol, name, score: rawScore, probability, predicted_return: predictedReturn, grade, actual_return: actualReturn, reasons: reasonScores };
       }
 
       async function screenWithBrowserData() {
         let rows;
         try {
           const localItems = await fetchLocalMarketData();
-          rows = localItems.map((item) => ({ status: "fulfilled", value: scoreFromChart(item.symbol, item.name, item.close, item.volume) }));
+          const scopedItems = state.market === "jp" && state.universeMode === "top1000" ? localItems.slice(0, 1000) : localItems;
+          rows = scopedItems.map((item) => ({ status: "fulfilled", value: scoreFromChart(item.symbol, item.name, item.close, item.volume) }));
         } catch {
           rows = await Promise.allSettled(fallbackUniverse[state.market].map(async ([symbol, name]) => {
             const chart = await fetchChart(symbol);
@@ -392,7 +420,11 @@
         const response = await fetch(`${apiBaseUrl}/api/screen`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(makePayload()) });
         if (!response.ok) throw new Error(await response.text());
         const json = await response.json();
-        return json.items.map((item) => ({ ...item, grade: item.predicted_return >= targetReturns[state.periodType] * 0.72 ? "強" : item.predicted_return >= targetReturns[state.periodType] * 0.58 ? "中" : "弱" }));
+        return json.items.map((item) => ({
+          ...item,
+          grade: item.predicted_return >= targetReturns[state.periodType] * 0.72 ? "強" : item.predicted_return >= targetReturns[state.periodType] * 0.58 ? "中" : "弱",
+          reasons: item.reasons || [{ label: "外部API", value: "-", percent: 50 }]
+        }));
       }
 
       async function screen() {
@@ -402,7 +434,8 @@
           const items = apiBaseUrl ? await screenWithExternalApi(apiBaseUrl) : await screenWithBrowserData();
           if (!items.length) throw new Error("表示できる銘柄がありませんでした");
           renderRanking(items);
-          setMessage(`${state.market === "jp" ? "JPX普通株全体" : "米国株500銘柄"}から上位${items.length}銘柄を表示しています。係数変更はランキング計算に反映されます。`);
+          const scopeLabel = state.market === "jp" ? (state.universeMode === "top1000" ? "JPX普通株1000銘柄" : "JPX普通株全体") : "米国株500銘柄";
+          setMessage(`${scopeLabel}から上位${items.length}銘柄を表示しています。銘柄をタップすると理由を確認できます。`);
         } catch (error) {
           setMessage(`取得に失敗しました: ${error.message || error}`);
         }
@@ -414,6 +447,7 @@
 
       function reset() {
         state.market = "jp";
+        state.universeMode = "all";
         state.periodType = "weekly";
         state.periodSlot = "current_to_next";
         state.coefficients = { ...defaultCoefficientPresets.weekly };
@@ -428,6 +462,14 @@
         document.querySelectorAll("[data-market]").forEach((button) => {
           button.addEventListener("click", () => {
             state.market = button.dataset.market;
+            if (state.market === "us") state.universeMode = "all";
+            syncButtons();
+            clearRanking();
+          });
+        });
+        document.querySelectorAll("[data-universe]").forEach((button) => {
+          button.addEventListener("click", () => {
+            state.universeMode = button.dataset.universe;
             syncButtons();
             clearRanking();
           });
