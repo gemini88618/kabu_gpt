@@ -23,6 +23,18 @@ flowchart TB
 
 The GitHub Pages version uses price and volume data that is refreshed by GitHub Actions. Since static hosting cannot reliably fetch all financial data from the browser, the default model focuses on factors that can be measured from daily price and volume history.
 
+The current model is an ensemble of specialist viewpoints:
+
+| Specialist | Question |
+|---|---|
+| Trend follower | Is the 5/25/75 day trend aligned upward? |
+| Momentum trader | Is recent performance strong without being a one-day spike? |
+| Volume analyst | Is the move confirmed by rising volume? |
+| Risk manager | Is volatility and drawdown acceptable? |
+| Entry strategist | Is this a healthy pullback or breakout entry? |
+| Continuation analyst | Is the 1M/3M/6M trend persistent? |
+| Overheat controller | Is the stock too extended to chase? |
+
 ## Coverage Universe
 
 The app does not scan every listed stock. Instead, it uses a broad recommended universe designed to reduce missed candidates while avoiding illiquid noise.
@@ -38,21 +50,21 @@ This is intentionally broader than a top-10 watchlist, but narrower than the ful
 
 | UI Label | Internal Factor | Purpose |
 |---|---|---|
-| 押し目余地 | Dip room | Avoid buying too far below/above recent highs |
-| 過熱回避 | Heat control | Penalize overextended monthly moves |
-| 値動き安定 | Stability | Prefer names with manageable volatility |
-| 上昇継続力 | Continuation | Combine 1M, 3M, and 6M trend strength |
-| トレンド | Moving-average trend | Reward 5/25/75 day alignment |
-| 出来高確認 | Volume confirmation | Reward volume expansion |
-| モメンタム | Momentum | Reward recent return and breakout behavior |
+| 押し目余地 | Entry score | Reward healthy pullbacks above trend and controlled breakouts |
+| 過熱回避 | Heat score | Penalize overextended 1W/1M moves |
+| 値動き安定 | Risk score | Prefer manageable volatility and drawdown |
+| 上昇継続力 | Continuation score | Combine 1M, 3M, 6M returns and up-day consistency |
+| トレンド | Trend score | Reward 5/25/75 day moving-average alignment |
+| 出来高確認 | Volume score | Reward volume expansion with positive price action |
+| モメンタム | Momentum score | Reward 1W/2W/1M return and high breakout behavior |
 
 ### Period Presets
 
 | Period | Emphasis |
 |---|---|
 | Weekly | Momentum, volume, short trend, overheating control |
-| Monthly | Trend continuation, medium momentum, stability |
-| Half year | Long trend, continuation, stability, lower volume weight |
+| Monthly | Trend, continuation, stability, moderate momentum |
+| Half year | Continuation, long trend, stability, lower volume/momentum weight |
 
 ### Formula
 
