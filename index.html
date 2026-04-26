@@ -57,6 +57,7 @@
       .advanced { margin-top: 14px; color: rgba(14,17,22,.68); font-size: 12px; font-weight: 800; }
       .advanced summary { min-height: 40px; cursor: pointer; }
       .api-input { min-height: 44px; width: 100%; border: 1px solid var(--line); border-radius: 7px; background: #fff; color: var(--ink); padding: 0 11px; font-size: 13px; font-weight: 700; }
+      .search-input { min-height: 44px; width: 100%; border: 1px solid var(--line); border-radius: 7px; background: #fff; color: var(--ink); padding: 0 11px; font-size: 14px; font-weight: 800; margin-top: 10px; }
       .message { display: none; margin-top: 12px; padding: 12px; border-radius: 8px; background: #fff7dd; color: #7a5300; font-size: 13px; font-weight: 800; }
       .message.show { display: block; }
       .ranking { margin-top: 14px; padding-bottom: 24px; }
@@ -83,6 +84,7 @@
       .chip { border-radius: 999px; background: #eef3e8; color: rgba(14,17,22,.72); padding: 4px 8px; font-size: 10px; font-weight: 900; }
       .detail-grid { display: grid; grid-template-columns: 104px 1fr; gap: 10px; align-items: center; margin-top: 10px; }
       .radar { width: 104px; height: 104px; }
+      .sparkline { width: 100%; height: 42px; margin-top: 8px; }
       .near-miss { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
       .mini-list { display: grid; gap: 6px; margin-top: 8px; font-size: 12px; font-weight: 800; }
       .mini-item { display: flex; justify-content: space-between; gap: 8px; padding: 7px 8px; border-radius: 7px; background: rgba(255,255,255,.72); }
@@ -91,6 +93,7 @@
       .risk-panel { display: grid; gap: 8px; margin-top: 10px; }
       .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; font-size: 12px; font-weight: 900; }
       .toggle-row input { width: 20px; height: 20px; accent-color: var(--accent); }
+      .data-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; margin-top: 8px; }
       .warning { color: #b14d20; }
       .hit { color: #0f8b6f; }
       .miss { color: #b14d20; }
@@ -130,6 +133,7 @@
           <button class="button ghost" data-preset="usTech">米大型Tech</button>
           <button class="button ghost" data-preset="favorites">お気に入り</button>
         </div>
+        <input class="search-input" id="searchInput" placeholder="銘柄名・コードで検索" />
         <div class="grid grid-2 period-slots" id="periodSlotButtons"></div>
       </section>
 
@@ -163,6 +167,11 @@
         <button class="button outline" id="fullBacktestButton">本格検証</button>
       </div>
       <div class="actions">
+        <button class="button outline" id="compareButton">期間比較</button>
+        <button class="button outline" id="exportCsvButton">CSV出力</button>
+      </div>
+      <div class="actions">
+        <button class="button outline" id="saveSettingsButton">条件保存</button>
         <button class="button outline" id="historyButton">履歴</button>
         <button class="button outline" id="clearHistoryButton">履歴削除</button>
       </div>
@@ -174,6 +183,9 @@
       </details>
 
       <div class="message" id="message"></div>
+      <section class="card history-panel" id="dataPanel"></section>
+      <section class="card history-panel" id="alertsPanel"></section>
+      <section class="card history-panel" id="comparePanel"></section>
       <section class="card history-panel" id="backtestPanel"></section>
       <section class="card history-panel" id="historyPanel"></section>
       <section class="ranking" id="ranking">
@@ -185,6 +197,7 @@
       const API_URL_STORAGE_KEY = "stockScannerApiBaseUrl";
       const FAVORITES_STORAGE_KEY = "stockScannerFavorites";
       const HISTORY_STORAGE_KEY = "stockScannerHistory";
+      const SETTINGS_STORAGE_KEY = "stockScannerSettings";
       const LOCAL_MARKET_DATA_URL = "./data/market-data.json";
       const YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/";
       const targetReturns = { weekly: 10, monthly: 50, half_year: 300 };
@@ -243,6 +256,7 @@
         market: "jp",
         universeMode: "all",
         preset: "balanced",
+        searchQuery: "",
         periodType: "weekly",
         periodSlot: "current_to_next",
         riskFilters: { excludeRisk: true, excludeIlliquid: true, excludeOverheated: false },
@@ -251,6 +265,9 @@
       let showFactorHelp = localStorage.getItem("showFactorHelp") !== "false";
       let favorites = new Set(JSON.parse(localStorage.getItem(FAVORITES_STORAGE_KEY) || "[]"));
       let latestNearMisses = [];
+      let latestResults = [];
+      let latestMeta = null;
+      let latestDataStats = null;
 
       function clip(value, low = -1, high = 1) {
         return Number.isFinite(value) ? Math.max(low, Math.min(high, value)) : 0;
@@ -349,7 +366,7 @@
       }
 
       function getUniverseSlice(items) {
-        const filtered = getPresetFilteredItems(items);
+        const filtered = getFilteredUniverse(items);
         const limit = universeLimits[state.universeMode] || Infinity;
         return filtered.slice(0, Math.min(filtered.length, limit));
       }
@@ -372,8 +389,43 @@
         return matched.length ? matched : items;
       }
 
+      function getSearchFilteredItems(items) {
+        const query = state.searchQuery.trim().toLowerCase();
+        if (!query) return items;
+        return items.filter((item) => `${item.symbol} ${item.name}`.toLowerCase().includes(query));
+      }
+
+      function getFilteredUniverse(items) {
+        return getSearchFilteredItems(getPresetFilteredItems(items));
+      }
+
       function saveFavorites() {
         localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([...favorites]));
+      }
+
+      function saveSettings() {
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({
+          market: state.market,
+          universeMode: state.universeMode,
+          preset: state.preset,
+          periodType: state.periodType,
+          periodSlot: state.periodSlot,
+          riskFilters: state.riskFilters,
+          coefficients: state.coefficients,
+          searchQuery: state.searchQuery
+        }));
+        setMessage("表示条件を保存しました。");
+      }
+
+      function loadSettings() {
+        const saved = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "null");
+        if (!saved) return;
+        Object.assign(state, {
+          ...saved,
+          riskFilters: { ...state.riskFilters, ...(saved.riskFilters || {}) },
+          coefficients: { ...state.coefficients, ...(saved.coefficients || {}) },
+          searchQuery: saved.searchQuery || ""
+        });
       }
 
       function saveHistory(result) {
@@ -402,6 +454,45 @@
           }).join("");
         }
         panel.classList.toggle("show");
+      }
+
+      function computeDataStats(json, items) {
+        const missingFundamentals = items.filter((item) => !(Number.isFinite(item.per) && Number.isFinite(item.pbr) && Number.isFinite(item.roe) && Number.isFinite(item.sales_growth))).length;
+        const priceReady = items.filter((item) => Array.isArray(item.close) && item.close.length >= 90).length;
+        return {
+          generatedAt: json.generated_at || "-",
+          source: json.source || "-",
+          total: items.length,
+          priceReady,
+          successRate: items.length ? Math.round((priceReady / items.length) * 100) : 0,
+          realFundamentals: items.length - missingFundamentals,
+          estimatedFundamentals: missingFundamentals,
+          estimatedRate: items.length ? Math.round((missingFundamentals / items.length) * 100) : 0
+        };
+      }
+
+      function renderDataStatus() {
+        const panel = document.getElementById("dataPanel");
+        if (!latestDataStats) return;
+        const generated = latestDataStats.generatedAt === "-" ? "-" : new Date(latestDataStats.generatedAt).toLocaleString("ja-JP");
+        panel.innerHTML = `<div class="section-title">データ状態</div><div class="data-grid"><div class="metric"><div class="metric-label">更新日時</div><div class="metric-value">${generated}</div></div><div class="metric"><div class="metric-label">価格取得率</div><div class="metric-value">${latestDataStats.successRate}%</div></div><div class="metric"><div class="metric-label">推定率</div><div class="metric-value">${latestDataStats.estimatedRate}%</div></div></div><div class="stock-note">対象 ${latestDataStats.total}件 / 価格利用可能 ${latestDataStats.priceReady}件 / 財務実データ ${latestDataStats.realFundamentals}件 / 推定補完 ${latestDataStats.estimatedFundamentals}件。取得できない指標は価格推移から補完しています。</div>`;
+        panel.classList.add("show");
+      }
+
+      function renderAlerts(items) {
+        const panel = document.getElementById("alertsPanel");
+        const history = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || "[]");
+        const previous = new Set((history[1]?.top || []).map((item) => item.symbol));
+        const favoriteHits = items.filter((item) => favorites.has(item.symbol)).slice(0, 5);
+        const newEntries = items.filter((item) => !previous.has(item.symbol)).slice(0, 5);
+        const riskImproved = items.filter((item) => item.risk_level === "低").slice(0, 5);
+        const blocks = [
+          ["お気に入り上位入り", favoriteHits],
+          ["新しく上位入り", newEntries],
+          ["リスク低め候補", riskImproved]
+        ].map(([title, rows]) => `<div class="mini-list"><strong>${title}</strong>${rows.length ? rows.map((item) => `<div class="mini-item"><span>${item.symbol} ${item.name}</span><strong>${item.predicted_return.toFixed(1)}%</strong></div>`).join("") : '<div class="mini-item"><span>該当なし</span></div>'}</div>`).join("");
+        panel.innerHTML = `<div class="section-title">アラート</div>${blocks}`;
+        panel.classList.add("show");
       }
 
       function makeTags(item) {
@@ -445,6 +536,20 @@
         return `<svg class="radar" viewBox="0 0 100 100" aria-hidden="true"><polygon points="50,8 86,30 78,74 50,92 22,74 14,30" fill="none" stroke="#d9dfd0" stroke-width="1"/><polygon points="${points}" fill="rgba(15,139,111,.22)" stroke="#0f8b6f" stroke-width="2"/></svg>`;
       }
 
+      function renderSparkline(values = []) {
+        const slice = values.filter(Number.isFinite).slice(-40);
+        if (slice.length < 2) return "";
+        const min = Math.min(...slice);
+        const max = Math.max(...slice);
+        const span = max - min || 1;
+        const points = slice.map((value, index) => {
+          const x = (index / (slice.length - 1)) * 100;
+          const y = 38 - ((value - min) / span) * 32;
+          return `${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(" ");
+        return `<svg class="sparkline" viewBox="0 0 100 42" preserveAspectRatio="none" aria-hidden="true"><polyline points="${points}" fill="none" stroke="#0f8b6f" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg>`;
+      }
+
       function setMessage(text) {
         const el = document.getElementById("message");
         el.textContent = text;
@@ -467,6 +572,7 @@
         document.querySelectorAll("[data-period-type]").forEach((button) => button.classList.toggle("active", button.dataset.periodType === state.periodType));
         document.querySelectorAll("[data-universe]").forEach((button) => button.classList.toggle("active", button.dataset.universe === state.universeMode));
         document.querySelectorAll("[data-preset]").forEach((button) => button.classList.toggle("active", button.dataset.preset === state.preset));
+        document.getElementById("searchInput").value = state.searchQuery;
         document.getElementById("universeButtons").style.display = "grid";
       }
 
@@ -527,7 +633,7 @@
           const tags = makeTags(item).map((tag) => `<span class="chip">${tag}</span>`).join("");
           const warnings = item.risk_warnings?.length ? `<div class="stock-note warning">注意: ${item.risk_warnings.join(" / ")}</div>` : "";
           const favoriteLabel = favorites.has(item.symbol) ? "お気に入り解除" : "お気に入り";
-          return `<details class="stock"><summary><div class="stock-top"><div><div class="symbol">#${item.rank} ${item.symbol}</div><div class="name">${item.name}</div><div class="chip-row">${tags}</div></div><div><div class="main-value">${item.predicted_return.toFixed(1)}%</div><div class="main-label">${validation ? "当時の予測" : "期待上昇率"}</div></div></div><div class="stock-metrics"><div class="metric"><div class="metric-label">総合評価</div><div class="metric-value">${item.grade}</div></div><div class="metric"><div class="metric-label">実績</div><div class="metric-value">${actual}</div></div><div class="metric"><div class="metric-label">検証判定</div><div class="metric-value ${verdictClass}">${verdict}</div></div><div class="metric"><div class="metric-label">リスク</div><div class="metric-value">${item.risk_level}</div></div><div class="metric"><div class="metric-label">PER</div><div class="metric-value">${formatFactor(item.fundamentals?.per, "倍")}</div></div><div class="metric"><div class="metric-label">ROE</div><div class="metric-value">${formatFactor(item.fundamentals?.roe, "%")}</div></div></div></summary>${warnings}<div class="detail-grid">${renderRadar(item.reasons)}<div><div class="stock-note">${makeExplanation(item)}</div><div class="reason-grid">${reasons}</div></div></div><button class="button ghost favorite-button" data-favorite="${item.symbol}" style="width:100%;margin-top:10px">${favoriteLabel}</button><div class="stock-note">${validation ? `この行は、選択した過去期間の開始時点での予測と、終了時点までの実績を比較しています。目標は+${targetReturns[state.periodType]}%です。` : "現在データに基づく未来予測です。"} ${item.fundamentals?.isEstimated ? "PER/PBR/ROE/売上成長率は、取得データに実数値がない場合に価格推移と銘柄特性から補完した推定値です。" : "PER/PBR/ROE/売上成長率は取得データの値を優先して評価しています。"}</div></details>`;
+          return `<details class="stock"><summary><div class="stock-top"><div><div class="symbol">#${item.rank} ${item.symbol}</div><div class="name">${item.name}</div><div class="chip-row">${tags}</div></div><div><div class="main-value">${item.predicted_return.toFixed(1)}%</div><div class="main-label">${validation ? "当時の予測" : "期待上昇率"}</div></div></div>${renderSparkline(item.spark_values)}<div class="stock-metrics"><div class="metric"><div class="metric-label">総合評価</div><div class="metric-value">${item.grade}</div></div><div class="metric"><div class="metric-label">実績</div><div class="metric-value">${actual}</div></div><div class="metric"><div class="metric-label">検証判定</div><div class="metric-value ${verdictClass}">${verdict}</div></div><div class="metric"><div class="metric-label">リスク</div><div class="metric-value">${item.risk_level}</div></div><div class="metric"><div class="metric-label">PER</div><div class="metric-value">${formatFactor(item.fundamentals?.per, "倍")}</div></div><div class="metric"><div class="metric-label">ROE</div><div class="metric-value">${formatFactor(item.fundamentals?.roe, "%")}</div></div></div></summary>${warnings}<div class="detail-grid">${renderRadar(item.reasons)}<div><div class="stock-note">${makeExplanation(item)}</div><div class="reason-grid">${reasons}</div></div></div><button class="button ghost favorite-button" data-favorite="${item.symbol}" style="width:100%;margin-top:10px">${favoriteLabel}</button><div class="stock-note">${validation ? `この行は、選択した過去期間の開始時点での予測と、終了時点までの実績を比較しています。目標は+${targetReturns[state.periodType]}%です。` : "現在データに基づく未来予測です。"} ${item.fundamentals?.isEstimated ? "PER/PBR/ROE/売上成長率は、取得データに実数値がない場合に価格推移と銘柄特性から補完した推定値です。" : "PER/PBR/ROE/売上成長率は取得データの値を優先して評価しています。"}</div></details>`;
         }).join("") + nearMissHtml;
         document.querySelectorAll("[data-favorite]").forEach((button) => {
           button.addEventListener("click", (event) => {
@@ -556,6 +662,7 @@
         const json = await response.json();
         const items = json.markets?.[state.market] || [];
         if (!items.length) throw new Error("同梱データに対象市場がありません");
+        latestDataStats = computeDataStats(json, items);
         return items;
       }
 
@@ -667,7 +774,7 @@
           value: `${Math.round((Number(value) + 1) * 50)}点`,
           percent: Math.round((Number(value) + 1) * 50)
         }));
-        return { symbol, name, score: rawScore, probability, predicted_return: predictedReturn, grade, actual_return: actualReturn, hit_target: hitTarget, relative_return: relativeReturn, risk_level: riskLevel, risk_warnings: riskWarnings, fundamentals, reasons: reasonScores };
+        return { symbol, name, score: rawScore, probability, predicted_return: predictedReturn, grade, actual_return: actualReturn, hit_target: hitTarget, relative_return: relativeReturn, risk_level: riskLevel, risk_warnings: riskWarnings, fundamentals, reasons: reasonScores, spark_values: sourceClose.slice(-40) };
       }
 
       async function screenWithBrowserData() {
@@ -724,8 +831,12 @@
           const result = apiBaseUrl ? await screenWithExternalApi(apiBaseUrl) : await screenWithBrowserData();
           const items = result.items;
           if (!items.length) throw new Error("表示できる銘柄がありませんでした");
+          latestResults = items;
+          latestMeta = result;
           renderRanking(items, result);
           saveHistory(result);
+          renderDataStatus();
+          renderAlerts(items);
           const modeMessage = isValidationSlot()
             ? "過去検証です。当時の予測と、その後の実績を比較しています。"
             : "未来予測です。現在までのデータで次の期間の候補を出しています。";
@@ -737,6 +848,66 @@
 
       function backtest() {
         setMessage("過去期間を選ぶと検証モードになります。当時使えたデータだけでランキングを作り、その後の実績が目標を超えたかを表示します。週は+10%、月は+50%、半年は+300%が判定基準です。");
+      }
+
+      function exportCsv() {
+        if (!latestResults.length) {
+          setMessage("CSV出力するランキングがありません。先にスクリーニングしてください。");
+          return;
+        }
+        const headers = ["rank","symbol","name","expected_return","grade","risk","actual_return","per","pbr","roe","sales_growth"];
+        const rows = latestResults.map((item) => [
+          item.rank,
+          item.symbol,
+          item.name,
+          item.predicted_return.toFixed(2),
+          item.grade,
+          item.risk_level,
+          item.actual_return == null ? "" : item.actual_return.toFixed(2),
+          item.fundamentals?.per?.toFixed?.(2) || "",
+          item.fundamentals?.pbr?.toFixed?.(2) || "",
+          item.fundamentals?.roe?.toFixed?.(2) || "",
+          item.fundamentals?.sales_growth?.toFixed?.(2) || ""
+        ]);
+        const csv = [headers, ...rows].map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");
+        const blob = new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `stock-scanner-${Date.now()}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+
+      async function comparePeriods() {
+        setMessage("週・月・半年を比較しています...");
+        const originalPeriodType = state.periodType;
+        const originalPeriodSlot = state.periodSlot;
+        const panel = document.getElementById("comparePanel");
+        try {
+          const localItems = await fetchLocalMarketData();
+          const comparisons = ["weekly", "monthly", "half_year"].map((periodType) => {
+            state.periodType = periodType;
+            state.periodSlot = "current_to_next";
+            const scopedItems = getUniverseSlice(localItems);
+            const benchmarkReturn = mean(scopedItems.map((item) => pctReturn(item.close || [], 21)));
+            const top = scopedItems.map((item, index) => scoreFromChart({ ...item, universe_position: index, universe_size: scopedItems.length, benchmark_return: benchmarkReturn })).filter(Boolean).filter((item) => !shouldExcludeByRisk(item)).sort((a, b) => b.predicted_return - a.predicted_return).slice(0, 5);
+            return { periodType, label: targetLabels[periodType], top };
+          });
+          state.periodType = originalPeriodType;
+          state.periodSlot = originalPeriodSlot;
+          renderSlots();
+          renderTarget();
+          panel.innerHTML = `<div class="section-title">期間比較</div>${comparisons.map((group) => `<div class="mini-list"><strong>${group.label}</strong>${group.top.map((item) => `<div class="mini-item"><span>${item.symbol} ${item.name}</span><strong>${item.predicted_return.toFixed(1)}%</strong></div>`).join("")}</div>`).join("")}`;
+          panel.classList.add("show");
+          setMessage("期間比較を表示しました。");
+        } catch (error) {
+          state.periodType = originalPeriodType;
+          state.periodSlot = originalPeriodSlot;
+          renderSlots();
+          renderTarget();
+          setMessage(`期間比較に失敗しました: ${error.message || error}`);
+        }
       }
 
       async function optimizeCoefficients() {
@@ -790,9 +961,11 @@
           const scopedItems = getUniverseSlice(localItems);
           const slots = periodSlots[state.periodType].filter(([slot]) => slot !== "current_to_next");
           const benchmarkReturn = mean(scopedItems.map((item) => pctReturn(item.close || [], 21)));
+          const allScored = [];
           const results = slots.map(([slot, label]) => {
             state.periodSlot = slot;
             const scored = scopedItems.map((item, index) => scoreFromChart({ ...item, universe_position: index, universe_size: scopedItems.length, benchmark_return: benchmarkReturn })).filter(Boolean).filter((item) => !shouldExcludeByRisk(item)).sort((a, b) => b.predicted_return - a.predicted_return).slice(0, 30);
+            allScored.push(...scored);
             const hitCount = scored.filter((item) => item.hit_target).length;
             const avgActual = mean(scored.map((item) => item.actual_return || 0));
             const worst = Math.min(...scored.map((item) => item.actual_return || 0));
@@ -804,7 +977,16 @@
           const totalHit = results.reduce((sum, item) => sum + item.hitCount, 0);
           const total = results.reduce((sum, item) => sum + item.total, 0);
           const avg = mean(results.map((item) => item.avgActual));
-          panel.innerHTML = `<div class="section-title">本格バックテスト</div><div class="scope-summary">過去3期間をそれぞれ当時のデータだけでランキング化し、目標達成率・平均実績・最大悪化を集計しました。総合達成率 ${total ? Math.round(totalHit / total * 100) : 0}% / 平均実績 ${avg.toFixed(1)}%</div><div class="mini-list">${results.map((item) => `<div class="mini-item"><span>${item.label}<br>達成 ${item.hitCount}/${item.total} / 平均 ${item.avgActual.toFixed(1)}%</span><strong class="${item.worst < 0 ? "miss" : "hit"}">${item.worst.toFixed(1)}%</strong></div>`).join("")}</div>`;
+          const hitRows = allScored.filter((item) => item.hit_target);
+          const missRows = allScored.filter((item) => !item.hit_target);
+          const factorRows = Object.keys(coefficientLabels).map((key) => {
+            const labelMap = { per: "PER", pbr: "PBR", roe: "ROE", sales_growth: "売上成長", moving_average: "トレンド", volume: "出来高", momentum: "勢い" };
+            const label = labelMap[key];
+            const hitAvg = mean(hitRows.map((item) => Number.parseInt(item.reasons.find((reason) => reason.label === label)?.value || "0", 10)));
+            const missAvg = mean(missRows.map((item) => Number.parseInt(item.reasons.find((reason) => reason.label === label)?.value || "0", 10)));
+            return { label, diff: hitAvg - missAvg };
+          }).sort((a, b) => b.diff - a.diff).slice(0, 4);
+          panel.innerHTML = `<div class="section-title">本格バックテスト</div><div class="scope-summary">過去3期間をそれぞれ当時のデータだけでランキング化し、目標達成率・平均実績・最大悪化を集計しました。総合達成率 ${total ? Math.round(totalHit / total * 100) : 0}% / 平均実績 ${avg.toFixed(1)}%</div><div class="mini-list">${results.map((item) => `<div class="mini-item"><span>${item.label}<br>達成 ${item.hitCount}/${item.total} / 平均 ${item.avgActual.toFixed(1)}%</span><strong class="${item.worst < 0 ? "miss" : "hit"}">${item.worst.toFixed(1)}%</strong></div>`).join("")}</div><div class="near-miss"><div class="section-title">効いている指標</div><div class="mini-list">${factorRows.map((item) => `<div class="mini-item"><span>${item.label}</span><strong class="${item.diff >= 0 ? "hit" : "miss"}">${item.diff.toFixed(1)}点</strong></div>`).join("")}</div></div>`;
           panel.classList.add("show");
           setMessage("バックテスト結果を表示しました。");
         } catch (error) {
@@ -852,6 +1034,8 @@
       }
 
       function init() {
+        loadSettings();
+        syncButtons();
         document.querySelectorAll("[data-market]").forEach((button) => {
           button.addEventListener("click", () => {
             state.market = button.dataset.market;
@@ -878,6 +1062,10 @@
             }
           });
         });
+        document.getElementById("searchInput").addEventListener("input", (event) => {
+          state.searchQuery = event.target.value;
+          clearRanking();
+        });
         document.querySelectorAll("[data-period-type]").forEach((button) => {
           button.addEventListener("click", () => {
             state.periodType = button.dataset.periodType;
@@ -894,6 +1082,9 @@
         document.getElementById("backtestButton").addEventListener("click", backtest);
         document.getElementById("optimizeButton").addEventListener("click", optimizeCoefficients);
         document.getElementById("fullBacktestButton").addEventListener("click", runFullBacktest);
+        document.getElementById("compareButton").addEventListener("click", comparePeriods);
+        document.getElementById("exportCsvButton").addEventListener("click", exportCsv);
+        document.getElementById("saveSettingsButton").addEventListener("click", saveSettings);
         document.getElementById("resetButton").addEventListener("click", reset);
         document.getElementById("historyButton").addEventListener("click", renderHistory);
         document.getElementById("clearHistoryButton").addEventListener("click", () => {
