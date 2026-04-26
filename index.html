@@ -103,9 +103,9 @@
           <button class="button" data-period-type="half_year">半年</button>
         </div>
         <div class="grid grid-4" id="universeButtons" style="margin-top:10px">
-          <button class="button" data-universe="top100">100株</button>
-          <button class="button" data-universe="top500">500株</button>
-          <button class="button" data-universe="top1000">1000株</button>
+          <button class="button" data-universe="top100">主力100</button>
+          <button class="button" data-universe="top500">主力500</button>
+          <button class="button" data-universe="top1000">主力1000</button>
           <button class="button active" data-universe="all">全部</button>
         </div>
         <div class="grid grid-2 period-slots" id="periodSlotButtons"></div>
@@ -146,7 +146,7 @@
       const ranges = { weekly: "6mo", monthly: "1y", half_year: "2y" };
       const targetLabels = { weekly: "短期急騰", monthly: "月次ブレイク", half_year: "大化け候補" };
       const universeLimits = { top100: 100, top500: 500, top1000: 1000, all: Infinity };
-      const universeLabels = { top100: "100銘柄", top500: "500銘柄", top1000: "1000銘柄", all: "全部" };
+      const universeLabels = { top100: "主力100銘柄", top500: "主力500銘柄", top1000: "主力1000銘柄", all: "全部" };
 
       const periodSlots = {
         weekly: [["p3_to_p2", "3週前→2週前"], ["p2_to_p1", "2週前→1週前"], ["p1_to_now", "1週前→現在"], ["current_to_next", "現在→1週後"]],
@@ -464,7 +464,7 @@
         const volumeCompositeScore = clip(volumeScore * 0.75 + fundamentals.liquidity_score * 0.25);
         const weights = state.coefficients;
         const totalWeight = Object.values(weights).reduce((sum, value) => sum + value, 0) || 1;
-        const rawScore = (
+        let rawScore = (
           weights.per * perScore +
           weights.pbr * pbrScore +
           weights.roe * roeScore +
@@ -473,6 +473,11 @@
           weights.volume * volumeCompositeScore +
           weights.momentum * momentumScore
         ) / totalWeight;
+        if (state.universeMode !== "all" && Number.isFinite(item.universe_position) && Number.isFinite(item.universe_size)) {
+          const positionRatio = item.universe_size > 1 ? item.universe_position / (item.universe_size - 1) : 0;
+          const universeQualityScore = clip(1 - positionRatio * 2);
+          rawScore = clip(rawScore * 0.68 + universeQualityScore * 0.32);
+        }
         const k = { weekly: 2.2, monthly: 1.8, half_year: 1.4 }[state.periodType];
         const probability = 100 / (1 + Math.exp(-k * rawScore));
         const predictedReturn = probability / 100 * targetReturns[state.periodType];
@@ -506,7 +511,10 @@
           const scopedItems = getUniverseSlice(localItems);
           scannedCount = scopedItems.length;
           scopeLabel = getUniverseScopeLabel(totalCount, scannedCount);
-          rows = scopedItems.map((item) => ({ status: "fulfilled", value: scoreFromChart(item) }));
+          rows = scopedItems.map((item, index) => ({
+            status: "fulfilled",
+            value: scoreFromChart({ ...item, universe_position: index, universe_size: scopedItems.length })
+          }));
         } catch {
           rows = await Promise.allSettled(fallbackUniverse[state.market].map(async ([symbol, name]) => {
             const chart = await fetchChart(symbol);

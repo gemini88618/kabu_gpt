@@ -24,6 +24,31 @@ JP_SEED = [
     ("9432.T", "Nippon Telegraph and Telephone"),
 ]
 
+JP_PRIORITY_SYMBOLS = """
+7203.T 6758.T 8306.T 8035.T 9984.T 6861.T 7974.T 9432.T 4063.T 6501.T
+8058.T 9983.T 6098.T 4568.T 8031.T 8001.T 8316.T 8411.T 8766.T 8591.T
+7011.T 7012.T 7013.T 5803.T 6146.T 6857.T 7741.T 6273.T 6920.T 7735.T
+6954.T 6981.T 6723.T 6988.T 6762.T 7751.T 6702.T 6701.T 6594.T 6367.T
+6301.T 8053.T 8002.T 8015.T 2768.T 3382.T 8267.T 9843.T 4452.T 4911.T
+2802.T 2914.T 2502.T 2503.T 2269.T 2282.T 2871.T 2897.T 4502.T 4503.T
+4519.T 4523.T 4578.T 4151.T 4543.T 4901.T 8801.T 8802.T 8830.T 3289.T
+8804.T 1925.T 1928.T 1801.T 1802.T 1803.T 1812.T 9020.T 9021.T 9022.T
+9101.T 9104.T 9107.T 9201.T 9202.T 6503.T 6752.T 7267.T 7269.T 7201.T
+7202.T 7270.T 6902.T 7259.T 5108.T 5401.T 5411.T 5713.T 5711.T 5020.T
+1605.T 9531.T 9532.T 9501.T 9502.T 9503.T 9506.T 4661.T 4689.T 4755.T
+4751.T 9613.T 3659.T 4307.T 4385.T 2413.T 7832.T 9697.T 9735.T 9766.T
+9024.T 9042.T 9147.T 9005.T 9007.T 9008.T 9009.T 9041.T 7453.T 7532.T
+3092.T 3086.T 8233.T 8252.T 8273.T 3099.T 3397.T 9843.T 2267.T 2587.T
+2579.T 2810.T 2801.T 2002.T 2212.T 2229.T 2264.T 2268.T 3402.T 3407.T
+4005.T 4183.T 4188.T 4204.T 3405.T 4004.T 4042.T 4043.T 4061.T 4186.T
+4189.T 4208.T 4631.T 5201.T 5202.T 5232.T 5301.T 5332.T 5333.T 5334.T
+5706.T 5714.T 5801.T 5802.T 5831.T 5838.T 7182.T 7186.T 7167.T 7172.T
+8304.T 8308.T 8309.T 8331.T 8354.T 8359.T 8308.T 8601.T 8604.T 8609.T
+8725.T 8750.T 8795.T 8630.T 8729.T 8253.T 8439.T 8473.T 8600.T 8697.T
+3288.T 3291.T 3462.T 8951.T 8952.T 8953.T 8954.T 8955.T 8956.T 8957.T
+285A.T 543A.T
+""".split()
+
 US_SEED = [
     ("NVDA", "NVIDIA"),
     ("AAPL", "Apple"),
@@ -88,6 +113,84 @@ US_SEED = [
     ("SBUX", "Starbucks"),
     ("PEP", "PepsiCo"),
 ]
+
+US_PRIORITY_SYMBOLS = """
+NVDA AAPL MSFT AMZN META GOOGL GOOG AVGO TSLA LLY JPM V MA COST NFLX WMT
+ORCL PG XOM HD JNJ BAC ABBV PLTR KO CRM UNH CSCO IBM GE AMD CVX WFC MS
+AXP GS DIS MCD CAT NOW ISRG INTU QCOM TXN AMAT PANW AMGN PEP TMO LIN RTX
+BKNG SPGI LOW HON UBER NKE BLK SCHW SYK C DE BA LMT ADP TJX GILD MDT ADI
+VRTX MU LRCX KLAC INTC ARM MRVL DELL ASML TSM SMCI CRWD NET DDOG MDB SNOW
+SHOP COIN MSTR APP RDDT SPOT DASH ABNB RBLX HOOD SOFI DUOL CAVA ELF HIMS
+LLY REGN BIIB CVS CI ELV MRK PFE BMY ABT DHR BSX ZTS ISRG VEEV WDAY TEAM
+CRM NOW ADBE ORCL IBM ACN INTU PYPL SQ FI FIS GPN V MA AXP JPM BAC C GS
+MS BLK SCHW BX KKR APO ARES COF USB PNC TFC NDAQ CME ICE CB AJG AON MMC
+XOM CVX COP SLB EOG MPC PSX VLO OXY FANG HAL BKR CAT DE GE HON ETN EMR
+PH ITW CMI URI BA LMT RTX NOC GD TXT UPS FDX UNP NSC CSX DAL UAL AAL RCL
+NCLH MAR HLT BKNG ABNB WMT COST HD LOW TGT TJX ROST ULTA SBUX MCD YUM CMG
+DPZ NKE LULU TPR RL KO PEP MNST KDP PG CL KMB COST MDLZ HSY GIS KR CAG
+AMZN TSLA F GM RIVN LCID
+""".split()
+
+US_NAME_OVERRIDES = {
+    "PG": "Procter & Gamble",
+    "XOM": "Exxon Mobil",
+    "JNJ": "Johnson & Johnson",
+    "ABBV": "AbbVie",
+    "KO": "Coca-Cola",
+    "IBM": "IBM",
+    "GE": "GE Aerospace",
+    "TMO": "Thermo Fisher Scientific",
+    "LIN": "Linde",
+    "SPGI": "S&P Global",
+    "SYK": "Stryker",
+    "MDT": "Medtronic",
+    "KLAC": "KLA",
+    "REGN": "Regeneron Pharmaceuticals",
+    "BIIB": "Biogen",
+    "CVS": "CVS Health",
+    "CI": "Cigna",
+    "ELV": "Elevance Health",
+    "MRK": "Merck",
+    "PFE": "Pfizer",
+    "BMY": "Bristol Myers Squibb",
+    "ABT": "Abbott Laboratories",
+    "DHR": "Danaher",
+    "BSX": "Boston Scientific",
+    "ZTS": "Zoetis",
+    "ACN": "Accenture",
+    "PYPL": "PayPal",
+    "FI": "Fiserv",
+    "FIS": "Fidelity National Information Services",
+    "GPN": "Global Payments",
+    "BLK": "BlackRock",
+    "SCHW": "Charles Schwab",
+    "BX": "Blackstone",
+    "KKR": "KKR",
+    "APO": "Apollo Global Management",
+    "ARES": "Ares Management",
+    "COF": "Capital One Financial",
+    "USB": "U.S. Bancorp",
+    "PNC": "PNC Financial Services",
+    "TFC": "Truist Financial",
+    "NDAQ": "Nasdaq",
+    "CME": "CME Group",
+    "ICE": "Intercontinental Exchange",
+    "CB": "Chubb",
+    "AJG": "Arthur J. Gallagher",
+    "AON": "Aon",
+    "MMC": "Marsh & McLennan",
+    "CVX": "Chevron",
+    "COP": "ConocoPhillips",
+    "SLB": "SLB",
+    "EOG": "EOG Resources",
+    "MPC": "Marathon Petroleum",
+    "PSX": "Phillips 66",
+    "VLO": "Valero Energy",
+    "OXY": "Occidental Petroleum",
+    "FANG": "Diamondback Energy",
+    "HAL": "Halliburton",
+    "BKR": "Baker Hughes",
+}
 
 ADDITIONAL_US_TICKERS = """
 KO PG NKE TGT LOW DIS BKNG MAR RCL NCLH DAL UAL CAT DE GE HON RTX BA LMT
@@ -179,11 +282,11 @@ def fetch_jpx_universe() -> list[tuple[str, str]]:
 
         rows = []
         for _, row in frame.iterrows():
-            raw_code = str(row[code_col]).strip().split(".")[0]
-            code = raw_code.zfill(4)
+            raw_code = str(row[code_col]).strip().split(".")[0].upper()
+            code = raw_code.zfill(4) if raw_code.isdigit() else raw_code
             name = str(row[name_col]).strip()
             market = str(row[market_col]).strip()
-            if not code.isdigit() or len(code) != 4:
+            if not code.isalnum() or len(code) != 4:
                 continue
             if any(word in market.upper() for word in ["ETF", "ETN", "REIT"]):
                 continue
@@ -230,11 +333,45 @@ def build_us_universe() -> list[tuple[str, str]]:
             seen.add(symbol)
     for symbol in ADDITIONAL_US_TICKERS:
         if symbol not in seen:
-            universe.append((symbol, symbol))
+            universe.append((symbol, US_NAME_OVERRIDES.get(symbol, symbol)))
             seen.add(symbol)
         if len(universe) >= US_TARGET_COUNT:
             break
     return universe[:US_TARGET_COUNT]
+
+
+def ordered_symbols(symbols: list[tuple[str, str]], priority_symbols: list[str]) -> list[tuple[str, str]]:
+    priority = {}
+    for index, symbol in enumerate(priority_symbols):
+        priority.setdefault(symbol, index)
+    return sorted(symbols, key=lambda item: (priority.get(item[0], 100_000), item[0]))
+
+
+def average_traded_value(item: dict) -> float:
+    closes = item.get("close", [])[-25:]
+    volumes = item.get("volume", [])[-25:]
+    if not closes or not volumes:
+        return 0.0
+    pairs = list(zip(closes, volumes))
+    return sum(float(close) * float(volume) for close, volume in pairs) / len(pairs)
+
+
+def sort_market_rows(market: str, rows: list[dict]) -> list[dict]:
+    priority_symbols = JP_PRIORITY_SYMBOLS if market == "jp" else US_PRIORITY_SYMBOLS
+    priority = {}
+    for index, symbol in enumerate(priority_symbols):
+        priority.setdefault(symbol, index)
+    if market == "us":
+        for item in rows:
+            item["name"] = US_NAME_OVERRIDES.get(item["symbol"], item.get("name", item["symbol"]))
+    return sorted(
+        rows,
+        key=lambda item: (
+            priority.get(item["symbol"], 100_000),
+            -average_traded_value(item),
+            item["symbol"],
+        ),
+    )
 
 
 def fetch_yfinance_history(symbol: str) -> dict | None:
@@ -257,8 +394,8 @@ def fetch_yfinance_history(symbol: str) -> dict | None:
 
 def build_market_data() -> dict:
     symbol_groups = {
-        "jp": build_jp_universe(),
-        "us": build_us_universe(),
+        "jp": ordered_symbols(build_jp_universe(), JP_PRIORITY_SYMBOLS),
+        "us": ordered_symbols(build_us_universe(), US_PRIORITY_SYMBOLS),
     }
 
     output = {
@@ -275,6 +412,7 @@ def build_market_data() -> dict:
             history = fetch_yfinance_history(symbol) or synthetic_history(symbol, global_index)
             output["markets"][market].append({"symbol": symbol, "name": name, **history})
             global_index += 1
+        output["markets"][market] = sort_market_rows(market, output["markets"][market])
 
     return output
 
