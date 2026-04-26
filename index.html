@@ -43,10 +43,18 @@
       .button.dark { background: var(--ink); color: #fff; }
       .button.outline { border: 1px solid var(--line); background: #fff; }
       .button.ghost { min-height: 36px; border: 1px solid var(--line); background: rgba(255,255,255,.68); font-size: 12px; }
+      .button.ghost.active { border-color: var(--accent); background: rgba(15,139,111,.14); color: var(--accent); box-shadow: inset 0 0 0 1px rgba(15,139,111,.18); }
+      .button.outline:hover, .button.ghost:hover { border-color: rgba(15,139,111,.42); }
+      .button .sub { display: block; margin-top: 2px; font-size: 10px; font-weight: 800; opacity: .72; }
       .period-slots { margin-top: 10px; }
       .period-slots .button { min-height: 48px; border: 1px solid var(--line); background: #fff; font-size: 12px; }
       .period-slots .button.active { border-color: var(--accent); background: rgba(15,139,111,.1); color: var(--accent); }
       .section-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-weight: 900; }
+      .action-guide { margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.72); padding: 10px 12px; font-size: 12px; color: rgba(14,17,22,.76); }
+      .action-guide summary { cursor: pointer; font-weight: 900; color: var(--ink); }
+      .action-guide-grid { display: grid; gap: 7px; margin-top: 8px; }
+      .action-guide-grid div { display: grid; grid-template-columns: 112px 1fr; gap: 8px; line-height: 1.45; }
+      .action-guide-grid strong { color: var(--accent); }
       .slider-row { display: block; margin-top: 10px; }
       .slider-meta { display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; }
       .slider-value { color: var(--accent); }
@@ -107,7 +115,7 @@
           <p class="eyebrow">PWA Scanner</p>
           <h1>Stock Scanner</h1>
         </div>
-        <button class="button outline" id="resetButton">Reset</button>
+        <button class="button outline" id="resetButton" title="市場・期間・係数などを初期状態に戻します">初期化</button>
       </header>
 
       <section class="card">
@@ -160,26 +168,39 @@
       </section>
 
       <div class="actions">
-        <button class="button dark" id="screenButton">スクリーニング</button>
-        <button class="button outline" id="backtestButton">実績の見方</button>
+        <button class="button dark" id="screenButton" title="選択した条件で上昇期待が高い銘柄トップ30を抽出します">候補を抽出<span class="sub">トップ30表示</span></button>
+        <button class="button outline" id="backtestButton" title="過去期間の表示が何を検証しているか説明します">過去実績の見方<span class="sub">検証の説明</span></button>
       </div>
       <div class="actions">
-        <button class="button outline" id="optimizeButton">係数最適化</button>
-        <button class="button outline" id="fullBacktestButton">本格検証</button>
+        <button class="button outline" id="optimizeButton" title="直近の過去データで係数候補を試し、初期係数を調整します">係数を自動調整<span class="sub">過去データで調整</span></button>
+        <button class="button outline" id="fullBacktestButton" title="複数の過去期間でヒット率などを確認します">過去データ検証<span class="sub">精度チェック</span></button>
       </div>
       <div class="actions">
-        <button class="button outline" id="compareButton">期間比較</button>
-        <button class="button outline" id="exportCsvButton">CSV出力</button>
+        <button class="button outline" id="compareButton" title="週・月・半年の予測結果を横断比較します">週/月/半年を比較<span class="sub">期間別の違い</span></button>
+        <button class="button outline" id="exportCsvButton" title="現在表示しているランキングをCSVファイルとして保存します">結果をCSV保存<span class="sub">一覧を保存</span></button>
       </div>
       <div class="actions">
-        <button class="button outline" id="favoriteDashboardButton">お気に入り分析</button>
-        <button class="button outline" id="sectorRankingButton">セクター別</button>
+        <button class="button outline" id="favoriteDashboardButton" title="お気に入り登録した銘柄だけを再評価します">お気に入り分析<span class="sub">登録銘柄だけ</span></button>
+        <button class="button outline" id="sectorRankingButton" title="半導体・金融などのセクターごとに候補を並べます">セクター別ランキング<span class="sub">業種ごとに確認</span></button>
       </div>
       <div class="actions">
-        <button class="button outline" id="saveSettingsButton">条件保存</button>
-        <button class="button outline" id="historyButton">履歴</button>
-        <button class="button outline" id="clearHistoryButton">履歴削除</button>
+        <button class="button outline" id="saveSettingsButton" title="現在の市場・期間・係数・リスク条件を端末に保存します">条件を保存<span class="sub">次回も使用</span></button>
+        <button class="button outline" id="historyButton" title="過去に抽出したランキングの履歴を表示します">抽出履歴を見る<span class="sub">過去結果</span></button>
+        <button class="button outline" id="clearHistoryButton" title="保存済みの抽出履歴を削除します">履歴を削除<span class="sub">記録を消す</span></button>
       </div>
+
+      <details class="action-guide">
+        <summary>ボタンの役割を確認する</summary>
+        <div class="action-guide-grid">
+          <div><strong>候補を抽出</strong><span>現在の市場・期間・銘柄数・係数で、上昇期待が高いトップ30を表示します。</span></div>
+          <div><strong>過去実績の見方</strong><span>3週間前などの過去期間が、予測ロジックの検証用であることを説明します。</span></div>
+          <div><strong>係数を自動調整</strong><span>過去データに基づき、PER・ROE・出来高などの係数を試験的に調整します。</span></div>
+          <div><strong>過去データ検証</strong><span>過去の複数期間で、予測が目標上昇率を超えたかを確認します。</span></div>
+          <div><strong>週/月/半年を比較</strong><span>同じ条件で、短期・中期・長期の候補がどう変わるか比較します。</span></div>
+          <div><strong>お気に入り分析</strong><span>お気に入り登録した銘柄だけを再スコアリングして、専用ダッシュボードで確認します。</span></div>
+          <div><strong>セクター別ランキング</strong><span>半導体・金融・商社など、業種ごとの有力候補を確認します。</span></div>
+        </div>
+      </details>
 
       <details class="advanced">
         <summary>外部FastAPIを使う場合だけ開く</summary>
