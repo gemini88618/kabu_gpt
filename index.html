@@ -88,6 +88,10 @@
       .mini-item { display: flex; justify-content: space-between; gap: 8px; padding: 7px 8px; border-radius: 7px; background: rgba(255,255,255,.72); }
       .history-panel { display: none; }
       .history-panel.show { display: block; }
+      .risk-panel { display: grid; gap: 8px; margin-top: 10px; }
+      .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; font-size: 12px; font-weight: 900; }
+      .toggle-row input { width: 20px; height: 20px; accent-color: var(--accent); }
+      .warning { color: #b14d20; }
       .hit { color: #0f8b6f; }
       .miss { color: #b14d20; }
     </style>
@@ -138,15 +142,28 @@
         <div id="sliders"></div>
       </section>
 
+      <section class="card">
+        <div class="section-title">
+          <span>リスク管理</span>
+          <span>除外フィルター</span>
+        </div>
+        <div class="risk-panel">
+          <label class="toggle-row"><span>高リスク銘柄を除外</span><input type="checkbox" id="excludeRiskInput" checked /></label>
+          <label class="toggle-row"><span>流動性が低い銘柄を除外</span><input type="checkbox" id="excludeIlliquidInput" checked /></label>
+          <label class="toggle-row"><span>急騰しすぎた銘柄を除外</span><input type="checkbox" id="excludeOverheatedInput" /></label>
+        </div>
+      </section>
+
       <div class="actions">
         <button class="button dark" id="screenButton">スクリーニング</button>
         <button class="button outline" id="backtestButton">実績の見方</button>
       </div>
       <div class="actions">
         <button class="button outline" id="optimizeButton">係数最適化</button>
-        <button class="button outline" id="historyButton">履歴</button>
+        <button class="button outline" id="fullBacktestButton">本格検証</button>
       </div>
       <div class="actions">
+        <button class="button outline" id="historyButton">履歴</button>
         <button class="button outline" id="clearHistoryButton">履歴削除</button>
       </div>
 
@@ -157,6 +174,7 @@
       </details>
 
       <div class="message" id="message"></div>
+      <section class="card history-panel" id="backtestPanel"></section>
       <section class="card history-panel" id="historyPanel"></section>
       <section class="ranking" id="ranking">
         <div class="empty">スクリーニングを実行するとトップ10が表示されます。</div>
@@ -227,6 +245,7 @@
         preset: "balanced",
         periodType: "weekly",
         periodSlot: "current_to_next",
+        riskFilters: { excludeRisk: true, excludeIlliquid: true, excludeOverheated: false },
         coefficients: { ...defaultCoefficientPresets.weekly }
       };
       let showFactorHelp = localStorage.getItem("showFactorHelp") !== "false";
@@ -350,9 +369,7 @@
         if (!preset.symbols) return items;
         const symbols = new Set(preset.symbols);
         const matched = items.filter((item) => symbols.has(item.symbol));
-        const matchedSymbols = new Set(matched.map((item) => item.symbol));
-        const rest = items.filter((item) => !matchedSymbols.has(item.symbol));
-        return [...matched, ...rest];
+        return matched.length ? matched : items;
       }
 
       function saveFavorites() {
@@ -396,6 +413,7 @@
         if ((scores["ROE"] || 0) >= 70) tags.push("高収益");
         if ((scores["トレンド"] || 0) >= 70) tags.push("上昇トレンド");
         if ((item.relative_return || 0) >= 5) tags.push("市場に勝つ");
+        if (item.risk_warnings?.some((warning) => warning !== "財務指標推定")) tags.push("リスク注意");
         if (item.fundamentals?.isEstimated) tags.push("指標推定");
         return tags.slice(0, 4);
       }
@@ -407,6 +425,13 @@
           return `当時の予測では${labels}が強く、期待上昇率は${item.predicted_return.toFixed(1)}%でした。実績は${item.actual_return.toFixed(1)}%で、${item.hit_target ? "目標を達成しています。" : "目標には届いていません。"}`;
         }
         return `${labels}が上位評価です。価格の勢いだけでなく、出来高、割安度、収益性を合わせて候補にしています。`;
+      }
+
+      function shouldExcludeByRisk(item) {
+        if (state.riskFilters.excludeRisk && item.risk_level === "高") return true;
+        if (state.riskFilters.excludeIlliquid && item.risk_warnings?.includes("流動性低")) return true;
+        if (state.riskFilters.excludeOverheated && item.risk_warnings?.includes("過熱気味")) return true;
+        return false;
       }
 
       function renderRadar(reasons) {
@@ -500,8 +525,9 @@
           const verdictClass = item.actual_return == null ? "" : item.hit_target ? "hit" : "miss";
           const reasons = item.reasons.map((reason) => `<div class="reason-row"><span>${reason.label}</span><div class="bar"><span style="width:${reason.percent}%"></span></div><span>${reason.value}</span></div>`).join("");
           const tags = makeTags(item).map((tag) => `<span class="chip">${tag}</span>`).join("");
+          const warnings = item.risk_warnings?.length ? `<div class="stock-note warning">注意: ${item.risk_warnings.join(" / ")}</div>` : "";
           const favoriteLabel = favorites.has(item.symbol) ? "お気に入り解除" : "お気に入り";
-          return `<details class="stock"><summary><div class="stock-top"><div><div class="symbol">#${item.rank} ${item.symbol}</div><div class="name">${item.name}</div><div class="chip-row">${tags}</div></div><div><div class="main-value">${item.predicted_return.toFixed(1)}%</div><div class="main-label">${validation ? "当時の予測" : "期待上昇率"}</div></div></div><div class="stock-metrics"><div class="metric"><div class="metric-label">総合評価</div><div class="metric-value">${item.grade}</div></div><div class="metric"><div class="metric-label">実績</div><div class="metric-value">${actual}</div></div><div class="metric"><div class="metric-label">検証判定</div><div class="metric-value ${verdictClass}">${verdict}</div></div><div class="metric"><div class="metric-label">PER</div><div class="metric-value">${formatFactor(item.fundamentals?.per, "倍")}</div></div><div class="metric"><div class="metric-label">ROE</div><div class="metric-value">${formatFactor(item.fundamentals?.roe, "%")}</div></div></div></summary><div class="detail-grid">${renderRadar(item.reasons)}<div><div class="stock-note">${makeExplanation(item)}</div><div class="reason-grid">${reasons}</div></div></div><button class="button ghost favorite-button" data-favorite="${item.symbol}" style="width:100%;margin-top:10px">${favoriteLabel}</button><div class="stock-note">${validation ? `この行は、選択した過去期間の開始時点での予測と、終了時点までの実績を比較しています。目標は+${targetReturns[state.periodType]}%です。` : "現在データに基づく未来予測です。"} ${item.fundamentals?.isEstimated ? "PER/PBR/ROE/売上成長率は、取得データに実数値がない場合に価格推移と銘柄特性から補完した推定値です。" : "PER/PBR/ROE/売上成長率は取得データの値を優先して評価しています。"}</div></details>`;
+          return `<details class="stock"><summary><div class="stock-top"><div><div class="symbol">#${item.rank} ${item.symbol}</div><div class="name">${item.name}</div><div class="chip-row">${tags}</div></div><div><div class="main-value">${item.predicted_return.toFixed(1)}%</div><div class="main-label">${validation ? "当時の予測" : "期待上昇率"}</div></div></div><div class="stock-metrics"><div class="metric"><div class="metric-label">総合評価</div><div class="metric-value">${item.grade}</div></div><div class="metric"><div class="metric-label">実績</div><div class="metric-value">${actual}</div></div><div class="metric"><div class="metric-label">検証判定</div><div class="metric-value ${verdictClass}">${verdict}</div></div><div class="metric"><div class="metric-label">リスク</div><div class="metric-value">${item.risk_level}</div></div><div class="metric"><div class="metric-label">PER</div><div class="metric-value">${formatFactor(item.fundamentals?.per, "倍")}</div></div><div class="metric"><div class="metric-label">ROE</div><div class="metric-value">${formatFactor(item.fundamentals?.roe, "%")}</div></div></div></summary>${warnings}<div class="detail-grid">${renderRadar(item.reasons)}<div><div class="stock-note">${makeExplanation(item)}</div><div class="reason-grid">${reasons}</div></div></div><button class="button ghost favorite-button" data-favorite="${item.symbol}" style="width:100%;margin-top:10px">${favoriteLabel}</button><div class="stock-note">${validation ? `この行は、選択した過去期間の開始時点での予測と、終了時点までの実績を比較しています。目標は+${targetReturns[state.periodType]}%です。` : "現在データに基づく未来予測です。"} ${item.fundamentals?.isEstimated ? "PER/PBR/ROE/売上成長率は、取得データに実数値がない場合に価格推移と銘柄特性から補完した推定値です。" : "PER/PBR/ROE/売上成長率は取得データの値を優先して評価しています。"}</div></details>`;
         }).join("") + nearMissHtml;
         document.querySelectorAll("[data-favorite]").forEach((button) => {
           button.addEventListener("click", (event) => {
@@ -592,6 +618,15 @@
         const healthyPullback = ma25 && latest > ma25 && dipDepth >= 2 && dipDepth <= 12 ? 1 : 0;
         const dipScore = clip(healthyPullback * 0.7 + breakoutScore * 0.3 - Math.max(0, -drawdown90 - 22) / 30);
         const heatScore = clip(1 - Math.max(0, recentReturn - 14) / 20 - Math.max(0, monthlyReturn - 35) / 45 - Math.max(0, distanceFromLow - 75) / 80);
+        const turnover = latest * mean(sourceVolume.slice(-25));
+        const riskWarnings = [];
+        if (volatility >= 6.5) riskWarnings.push("値動き大");
+        if (drawdown90 <= -28) riskWarnings.push("下落耐性弱");
+        if (recentReturn >= 18 || monthlyReturn >= 45) riskWarnings.push("過熱気味");
+        if (volume25 < 150000 || turnover < 100000000) riskWarnings.push("流動性低");
+        if (fundamentals.isEstimated) riskWarnings.push("財務指標推定");
+        const hardWarnings = riskWarnings.filter((warning) => warning !== "財務指標推定").length;
+        const riskLevel = hardWarnings >= 2 ? "高" : hardWarnings === 1 ? "中" : "低";
         const perScore = clip(scoreValueFactor(fundamentals.per, 8, 42) * 0.70 + heatScore * 0.30);
         const pbrScore = clip(scoreValueFactor(fundamentals.pbr, 0.8, 7.5) * 0.65 + dipScore * 0.35);
         const roeScore = clip(scoreValueFactor(fundamentals.roe, 28, 4, false) * 0.75 + stabilityScore * 0.25);
@@ -632,7 +667,7 @@
           value: `${Math.round((Number(value) + 1) * 50)}点`,
           percent: Math.round((Number(value) + 1) * 50)
         }));
-        return { symbol, name, score: rawScore, probability, predicted_return: predictedReturn, grade, actual_return: actualReturn, hit_target: hitTarget, relative_return: relativeReturn, fundamentals, reasons: reasonScores };
+        return { symbol, name, score: rawScore, probability, predicted_return: predictedReturn, grade, actual_return: actualReturn, hit_target: hitTarget, relative_return: relativeReturn, risk_level: riskLevel, risk_warnings: riskWarnings, fundamentals, reasons: reasonScores };
       }
 
       async function screenWithBrowserData() {
@@ -660,7 +695,7 @@
           totalCount = scannedCount;
           scopeLabel = state.market === "jp" ? "予備データの日本株" : "予備データの米国株";
         }
-        const sorted = rows.filter((row) => row.status === "fulfilled" && row.value).map((row) => row.value).sort((a, b) => b.predicted_return - a.predicted_return);
+        const sorted = rows.filter((row) => row.status === "fulfilled" && row.value).map((row) => row.value).filter((item) => !shouldExcludeByRisk(item)).sort((a, b) => b.predicted_return - a.predicted_return);
         const items = sorted.slice(0, 30).map((item, index) => ({ ...item, rank: index + 1 }));
         latestNearMisses = sorted.slice(30, 35);
         return { items, scannedCount, totalCount, scopeLabel };
@@ -746,18 +781,74 @@
         }
       }
 
+      async function runFullBacktest() {
+        setMessage("複数の過去期間でバックテストしています...");
+        const originalSlot = state.periodSlot;
+        const panel = document.getElementById("backtestPanel");
+        try {
+          const localItems = await fetchLocalMarketData();
+          const scopedItems = getUniverseSlice(localItems);
+          const slots = periodSlots[state.periodType].filter(([slot]) => slot !== "current_to_next");
+          const benchmarkReturn = mean(scopedItems.map((item) => pctReturn(item.close || [], 21)));
+          const results = slots.map(([slot, label]) => {
+            state.periodSlot = slot;
+            const scored = scopedItems.map((item, index) => scoreFromChart({ ...item, universe_position: index, universe_size: scopedItems.length, benchmark_return: benchmarkReturn })).filter(Boolean).filter((item) => !shouldExcludeByRisk(item)).sort((a, b) => b.predicted_return - a.predicted_return).slice(0, 30);
+            const hitCount = scored.filter((item) => item.hit_target).length;
+            const avgActual = mean(scored.map((item) => item.actual_return || 0));
+            const worst = Math.min(...scored.map((item) => item.actual_return || 0));
+            return { label, hitCount, total: scored.length, avgActual, worst };
+          });
+          state.periodSlot = originalSlot;
+          renderSlots();
+          renderTarget();
+          const totalHit = results.reduce((sum, item) => sum + item.hitCount, 0);
+          const total = results.reduce((sum, item) => sum + item.total, 0);
+          const avg = mean(results.map((item) => item.avgActual));
+          panel.innerHTML = `<div class="section-title">本格バックテスト</div><div class="scope-summary">過去3期間をそれぞれ当時のデータだけでランキング化し、目標達成率・平均実績・最大悪化を集計しました。総合達成率 ${total ? Math.round(totalHit / total * 100) : 0}% / 平均実績 ${avg.toFixed(1)}%</div><div class="mini-list">${results.map((item) => `<div class="mini-item"><span>${item.label}<br>達成 ${item.hitCount}/${item.total} / 平均 ${item.avgActual.toFixed(1)}%</span><strong class="${item.worst < 0 ? "miss" : "hit"}">${item.worst.toFixed(1)}%</strong></div>`).join("")}</div>`;
+          panel.classList.add("show");
+          setMessage("バックテスト結果を表示しました。");
+        } catch (error) {
+          state.periodSlot = originalSlot;
+          renderSlots();
+          renderTarget();
+          setMessage(`バックテストに失敗しました: ${error.message || error}`);
+        }
+      }
+
       function reset() {
         state.market = "jp";
         state.universeMode = "all";
         state.preset = "balanced";
         state.periodType = "weekly";
         state.periodSlot = "current_to_next";
+        state.riskFilters = { excludeRisk: true, excludeIlliquid: true, excludeOverheated: false };
         state.coefficients = { ...defaultCoefficientPresets.weekly };
         syncButtons();
         renderSlots();
         renderSliders();
         renderTarget();
+        renderRiskFilters();
         clearRanking();
+      }
+
+      function renderRiskFilters() {
+        document.getElementById("excludeRiskInput").checked = state.riskFilters.excludeRisk;
+        document.getElementById("excludeIlliquidInput").checked = state.riskFilters.excludeIlliquid;
+        document.getElementById("excludeOverheatedInput").checked = state.riskFilters.excludeOverheated;
+      }
+
+      function bindRiskFilters() {
+        const bindings = [
+          ["excludeRiskInput", "excludeRisk"],
+          ["excludeIlliquidInput", "excludeIlliquid"],
+          ["excludeOverheatedInput", "excludeOverheated"]
+        ];
+        bindings.forEach(([id, key]) => {
+          document.getElementById(id).addEventListener("change", (event) => {
+            state.riskFilters[key] = event.target.checked;
+            clearRanking();
+          });
+        });
       }
 
       function init() {
@@ -802,6 +893,7 @@
         document.getElementById("screenButton").addEventListener("click", screen);
         document.getElementById("backtestButton").addEventListener("click", backtest);
         document.getElementById("optimizeButton").addEventListener("click", optimizeCoefficients);
+        document.getElementById("fullBacktestButton").addEventListener("click", runFullBacktest);
         document.getElementById("resetButton").addEventListener("click", reset);
         document.getElementById("historyButton").addEventListener("click", renderHistory);
         document.getElementById("clearHistoryButton").addEventListener("click", () => {
@@ -816,6 +908,8 @@
         });
         document.getElementById("saveApiButton").addEventListener("click", saveApiUrl);
         document.getElementById("apiBaseUrlInput").value = localStorage.getItem(API_URL_STORAGE_KEY) || "";
+        bindRiskFilters();
+        renderRiskFilters();
         renderSlots();
         renderSliders();
         renderTarget();

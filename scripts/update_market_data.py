@@ -392,6 +392,35 @@ def fetch_yfinance_history(symbol: str) -> dict | None:
         return None
 
 
+def fetch_yfinance_fundamentals(symbol: str) -> dict:
+    try:
+        import yfinance as yf
+
+        ticker = yf.Ticker(symbol)
+        info = ticker.get_info() or {}
+
+        def number(*keys: str):
+            for key in keys:
+                value = info.get(key)
+                if isinstance(value, (int, float)) and math.isfinite(float(value)):
+                    return float(value)
+            return None
+
+        roe = number("returnOnEquity")
+        revenue_growth = number("revenueGrowth", "earningsQuarterlyGrowth")
+        fundamentals = {
+            "per": number("trailingPE", "forwardPE"),
+            "pbr": number("priceToBook"),
+            "roe": roe * 100 if roe is not None and abs(roe) <= 2 else roe,
+            "sales_growth": revenue_growth * 100 if revenue_growth is not None and abs(revenue_growth) <= 2 else revenue_growth,
+            "market_cap": number("marketCap"),
+            "average_volume": number("averageVolume", "averageDailyVolume10Day"),
+        }
+        return {key: value for key, value in fundamentals.items() if value is not None}
+    except Exception:
+        return {}
+
+
 def build_market_data() -> dict:
     symbol_groups = {
         "jp": ordered_symbols(build_jp_universe(), JP_PRIORITY_SYMBOLS),
@@ -410,7 +439,8 @@ def build_market_data() -> dict:
         output["markets"][market] = []
         for symbol, name in symbols:
             history = fetch_yfinance_history(symbol) or synthetic_history(symbol, global_index)
-            output["markets"][market].append({"symbol": symbol, "name": name, **history})
+            fundamentals = fetch_yfinance_fundamentals(symbol)
+            output["markets"][market].append({"symbol": symbol, "name": name, **history, **fundamentals})
             global_index += 1
         output["markets"][market] = sort_market_rows(market, output["markets"][market])
 
