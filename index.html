@@ -50,11 +50,18 @@
       .period-slots .button { min-height: 48px; border: 1px solid var(--line); background: #fff; font-size: 12px; }
       .period-slots .button.active { border-color: var(--accent); background: rgba(15,139,111,.1); color: var(--accent); }
       .section-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-weight: 900; }
+      .collapsible summary { list-style: none; display: flex; align-items: center; justify-content: space-between; min-height: 38px; cursor: pointer; font-weight: 900; }
+      .collapsible summary::-webkit-details-marker { display: none; }
+      .collapsible summary::after { content: "開く"; border-radius: 999px; background: #eef3e8; color: var(--accent); padding: 4px 9px; font-size: 11px; font-weight: 900; }
+      .collapsible[open] summary { margin-bottom: 10px; }
+      .collapsible[open] summary::after { content: "閉じる"; background: rgba(15,139,111,.14); }
+      .collapsible-body { display: grid; gap: 0; }
       .action-guide { margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.72); padding: 10px 12px; font-size: 12px; color: rgba(14,17,22,.76); }
       .action-guide summary { cursor: pointer; font-weight: 900; color: var(--ink); }
       .action-guide-grid { display: grid; gap: 7px; margin-top: 8px; }
       .action-guide-grid div { display: grid; grid-template-columns: 112px 1fr; gap: 8px; line-height: 1.45; }
       .action-guide-grid strong { color: var(--accent); }
+      .idea-list { display: grid; gap: 8px; margin: 0; padding-left: 18px; color: rgba(14,17,22,.72); font-size: 12px; font-weight: 800; line-height: 1.55; }
       .slider-row { display: block; margin-top: 10px; }
       .slider-meta { display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; }
       .slider-value { color: var(--accent); }
@@ -118,7 +125,9 @@
         <button class="button outline" id="resetButton" title="市場・期間・係数などを初期状態に戻します">初期化</button>
       </header>
 
-      <section class="card">
+      <details class="card collapsible" open>
+        <summary>条件を選ぶ</summary>
+        <div class="collapsible-body">
         <div class="grid grid-2" id="marketButtons">
           <button class="button active" data-market="jp">日本株</button>
           <button class="button" data-market="us">米国株</button>
@@ -144,18 +153,24 @@
         </div>
         <input class="search-input" id="searchInput" placeholder="銘柄名・コードで検索" />
         <div class="grid grid-2 period-slots" id="periodSlotButtons"></div>
-      </section>
+        </div>
+      </details>
 
-      <section class="card">
+      <details class="card collapsible">
+        <summary>係数を調整する</summary>
+        <div class="collapsible-body">
         <div class="section-title">
           <span>係数</span>
           <span id="targetReturn">短期急騰 / 目標 +10%</span>
         </div>
         <button class="button outline" id="toggleHelpButton" style="width:100%;margin-bottom:8px">係数の解説を非表示</button>
         <div id="sliders"></div>
-      </section>
+        </div>
+      </details>
 
-      <section class="card">
+      <details class="card collapsible">
+        <summary>リスク条件を設定する</summary>
+        <div class="collapsible-body">
         <div class="section-title">
           <span>リスク管理</span>
           <span>除外フィルター</span>
@@ -165,8 +180,12 @@
           <label class="toggle-row"><span>流動性が低い銘柄を除外</span><input type="checkbox" id="excludeIlliquidInput" checked /></label>
           <label class="toggle-row"><span>急騰しすぎた銘柄を除外</span><input type="checkbox" id="excludeOverheatedInput" /></label>
         </div>
-      </section>
+        </div>
+      </details>
 
+      <details class="card collapsible" open>
+        <summary>分析ツールを使う</summary>
+        <div class="collapsible-body">
       <div class="actions">
         <button class="button dark" id="screenButton" title="選択した条件で上昇期待が高い銘柄トップ30を抽出します">候補を抽出<span class="sub">トップ30表示</span></button>
         <button class="button outline" id="backtestButton" title="過去期間の表示が何を検証しているか説明します">過去実績の見方<span class="sub">検証の説明</span></button>
@@ -201,11 +220,24 @@
           <div><strong>セクター別ランキング</strong><span>半導体・金融・商社など、業種ごとの有力候補を確認します。</span></div>
         </div>
       </details>
+        </div>
+      </details>
 
       <details class="advanced">
         <summary>外部FastAPIを使う場合だけ開く</summary>
         <input class="api-input" id="apiBaseUrlInput" placeholder="https://your-api.onrender.com" />
         <button class="button outline" id="saveApiButton" style="width:100%;margin-top:8px">API URLを保存</button>
+      </details>
+
+      <details class="card collapsible">
+        <summary>精度を上げる次の一手</summary>
+        <ul class="idea-list">
+          <li>決算日・決算サプライズ・上方修正を入れると、急騰候補の検出力が上がります。</li>
+          <li>同業他社との相対PER/PBR/ROE比較にすると、単独指標より割安・割高の判断が安定します。</li>
+          <li>出来高急増を「価格上昇を伴う出来高」と「下落中の出来高」に分けると、だまし上げを減らせます。</li>
+          <li>過去検証で外れやすい銘柄タイプを減点するメタスコアを入れると、ランキングの再現性が上がります。</li>
+          <li>ニュース・テーマ性・空売り比率などを追加できると、週次の急騰予測はさらに強くなります。</li>
+        </ul>
       </details>
 
       <div class="message" id="message"></div>
