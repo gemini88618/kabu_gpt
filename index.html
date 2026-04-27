@@ -761,7 +761,12 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(makeAiPayload(item))
           });
-          if (!response.ok) throw new Error(await response.text());
+          if (!response.ok) {
+            if (response.status === 404) {
+              throw new Error("Cloudflare WorkerにAI解説コードが反映されていません。CloudflareのEdit Codeでworkers/ai-explainer/src/index.jsの内容を貼り付けて、Save and Deployしてください。");
+            }
+            throw new Error(await response.text());
+          }
           const json = await response.json();
           if (box) box.innerHTML = `<strong>AI解説</strong>\n${escapeHtml(json.explanation || "解説を取得できませんでした。")}`;
           setMessage(`${item.symbol} のAI解説を表示しました。`);

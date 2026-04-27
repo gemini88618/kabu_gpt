@@ -78,6 +78,14 @@ export default {
     }
 
     const url = new URL(request.url);
+    if (url.pathname === "/" && request.method === "GET") {
+      return jsonResponse({
+        ok: true,
+        service: "Stock AI Explainer",
+        endpoint: "/explain"
+      });
+    }
+
     if (url.pathname !== "/explain" || request.method !== "POST") {
       return jsonResponse({ error: "Not found" }, 404);
     }
