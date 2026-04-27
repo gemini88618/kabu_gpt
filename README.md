@@ -53,3 +53,14 @@ GitHub Pagesで使う場合は、リポジトリ直下の `index.html` を公開
 ## 注意
 
 このアプリは投資判断を補助するためのスクリーニングツールです。売買判断は自己責任で行ってください。
+## AI解説API（Cloudflare Workers AI）
+
+銘柄カードの `AI解説を表示` は、Cloudflare Workers AIで動かす小さなAPIを呼び出します。
+
+```powershell
+cd workers/ai-explainer
+npx wrangler login
+npx wrangler deploy
+```
+
+デプロイ後に表示される `https://...workers.dev` のURLを、PWA画面の `AI解説API（Cloudflare Workers）を設定する` に保存してください。APIキーはブラウザ側には置かず、WorkerのAI bindingでLLMを呼び出します。
