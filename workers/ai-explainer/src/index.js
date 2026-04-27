@@ -34,11 +34,14 @@ function buildPrompt(stock) {
 断定を避け、「上昇しそう」ではなく「上昇期待が評価されている理由」として説明してください。
 
 出力形式:
-1. 期待が高い理由
-2. 強い材料
-3. 注意点
-4. 期間別の見方
-5. 最後に一言
+1. 最終判断
+   - 「買い検討」「様子見」「見送り」のどれかを最初に明記
+   - ただし投資助言ではなく、アプリのスコア上の判断と明記
+2. 期待上昇率
+   - 株価がどれくらい上がりそうと評価されているかを説明
+3. 根拠
+4. 注意点
+5. 期間別の見方
 
 銘柄:
 - コード: ${clampText(stock.symbol, 40)}
@@ -48,6 +51,8 @@ function buildPrompt(stock) {
 - 目標上昇率: +${stock.targetReturn}%
 - 期待上昇率: ${stock.expectedReturn}%
 - 総合評価: ${clampText(stock.grade, 20)}
+- アプリ判定: ${clampText(stock.decision?.label, 40)}
+- 判定メッセージ: ${clampText(stock.decision?.message, 300)}
 - リスク: ${clampText(stock.riskLevel, 20)}
 - リスク警告: ${clampText(warnings, 240)}
 
@@ -65,7 +70,8 @@ function buildPrompt(stock) {
 - 合議モデル: ${clampText(modelScores, 500)}
 
 注意:
-- 買い推奨・売り推奨とは書かない
+- 「買い検討」「様子見」「見送り」は使ってよいが、必ず「アプリのスコア上の目安」と説明する
+- 「必ず買うべき」「必ず上がる」とは書かない
 - 不確実性とリスクを必ず含める
 - 初心者にもわかる言葉で、400〜700字程度
 `;
