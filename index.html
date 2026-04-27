@@ -247,7 +247,7 @@
 
       <details class="advanced">
         <summary>AI解説API（Cloudflare Workers）を設定する</summary>
-        <input class="api-input" id="aiWorkerUrlInput" placeholder="https://stock-ai-explainer.gemini88618.workers.dev" />
+        <input class="api-input" id="aiWorkerUrlInput" placeholder="https://stock-ai-explainer-v2.gemini88618.workers.dev" />
         <button class="button outline" id="saveAiWorkerUrlButton" style="width:100%;margin-top:8px">AI解説URLを保存</button>
         <div class="stock-note">Cloudflare Workers AIの無料枠を使うため、WorkerのURLだけをここに保存します。APIキーは画面側には置きません。</div>
       </details>
@@ -279,7 +279,7 @@
     <script>
       const API_URL_STORAGE_KEY = "stockScannerApiBaseUrl";
       const AI_WORKER_URL_STORAGE_KEY = "stockScannerAiWorkerUrl";
-      const DEFAULT_AI_WORKER_URL = "https://stock-ai-explainer.gemini88618.workers.dev";
+      const DEFAULT_AI_WORKER_URL = "https://stock-ai-explainer-v2.gemini88618.workers.dev";
       const FAVORITES_STORAGE_KEY = "stockScannerFavorites";
       const HISTORY_STORAGE_KEY = "stockScannerHistory";
       const SETTINGS_STORAGE_KEY = "stockScannerSettings";
