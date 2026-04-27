@@ -45,6 +45,10 @@
       .button.ghost { min-height: 36px; border: 1px solid var(--line); background: rgba(255,255,255,.68); font-size: 12px; }
       .button.ghost.active { border-color: var(--accent); background: rgba(15,139,111,.14); color: var(--accent); box-shadow: inset 0 0 0 1px rgba(15,139,111,.18); }
       .button.outline:hover, .button.ghost:hover { border-color: rgba(15,139,111,.42); }
+      .button.tool-active { border: 2px solid #0f8b6f; background: #0f8b6f; color: #fff; box-shadow: 0 10px 22px rgba(15,139,111,.24); transform: translateY(-1px); }
+      .button.tool-active::before { content: "実行中"; display: block; margin-bottom: 2px; font-size: 10px; font-weight: 900; color: #fff; opacity: .9; }
+      .button.tool-done { border: 2px solid #d07b1f; background: #fff3df; color: #9a540c; box-shadow: 0 0 0 2px rgba(208,123,31,.12); }
+      .button.tool-done::before { content: "直近実行"; display: block; margin-bottom: 2px; font-size: 10px; font-weight: 900; color: #9a540c; }
       .button .sub { display: block; margin-top: 2px; font-size: 10px; font-weight: 800; opacity: .72; }
       .period-slots { margin-top: 10px; }
       .period-slots .button { min-height: 48px; border: 1px solid var(--line); background: #fff; font-size: 12px; }
@@ -75,6 +79,14 @@
       .search-input { min-height: 44px; width: 100%; border: 1px solid var(--line); border-radius: 7px; background: #fff; color: var(--ink); padding: 0 11px; font-size: 14px; font-weight: 800; margin-top: 10px; }
       .message { display: none; margin-top: 12px; padding: 12px; border-radius: 8px; background: #fff7dd; color: #7a5300; font-size: 13px; font-weight: 800; }
       .message.show { display: block; }
+      .tool-status { display: none; margin-top: 12px; padding: 12px; border: 1px solid rgba(15,139,111,.22); border-radius: 10px; background: rgba(15,139,111,.08); color: rgba(14,17,22,.78); font-size: 12px; font-weight: 900; line-height: 1.55; }
+      .tool-status.show { display: block; }
+      .tool-status strong { display: block; color: var(--accent); font-size: 13px; }
+      .tool-status .progress { height: 7px; margin-top: 8px; overflow: hidden; border-radius: 999px; background: rgba(15,139,111,.14); }
+      .tool-status .progress span { display: block; width: 42%; height: 100%; border-radius: 999px; background: var(--accent); animation: progress-slide 1.05s infinite ease-in-out; }
+      .tool-status.done { background: #f3f8ec; border-color: #cbdcba; }
+      .tool-status.done .progress { display: none; }
+      @keyframes progress-slide { 0% { transform: translateX(-105%); } 100% { transform: translateX(245%); } }
       .ranking { margin-top: 14px; padding-bottom: 24px; }
       .empty { padding: 26px 18px; border: 1px dashed var(--line); border-radius: 8px; background: rgba(255,255,255,.58); color: rgba(14,17,22,.58); text-align: center; font-size: 14px; font-weight: 800; }
       .stock { margin-top: 8px; padding: 13px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
@@ -207,6 +219,7 @@
         <button class="button outline" id="historyButton" title="過去に抽出したランキングの履歴を表示します">抽出履歴を見る<span class="sub">過去結果</span></button>
         <button class="button outline" id="clearHistoryButton" title="保存済みの抽出履歴を削除します">履歴を削除<span class="sub">記録を消す</span></button>
       </div>
+      <div class="tool-status" id="toolStatus"></div>
 
       <details class="action-guide">
         <summary>ボタンの役割を確認する</summary>
@@ -694,6 +707,59 @@
         const el = document.getElementById("message");
         el.textContent = text;
         el.classList.toggle("show", Boolean(text));
+      }
+
+      const toolGuide = {
+        screenButton: { title: "候補を抽出中", start: "条件に合う銘柄をスコアリングしています。完了後、下のランキングにトップ30が表示されます。", done: "候補抽出が完了しました。ランキングをタップすると、上昇期待の理由を確認できます。" },
+        backtestButton: { title: "過去実績の見方", start: "検証期間の読み方を説明します。", done: "説明をメッセージ欄に表示しました。過去期間を選ぶと、当時の予測と実績を比較できます。" },
+        optimizeButton: { title: "係数を自動調整中", start: "過去データで複数の係数パターンを試しています。少し待ってください。", done: "係数調整が完了しました。「係数を調整する」を開くと値を確認できます。" },
+        fullBacktestButton: { title: "過去データ検証中", start: "複数の過去期間でヒット率と平均実績を計算しています。", done: "検証結果を表示しました。過去データ検証パネルを確認してください。" },
+        compareButton: { title: "期間比較中", start: "週・月・半年それぞれの上位候補を比較しています。", done: "期間比較を表示しました。期間ごとの候補の違いを確認できます。" },
+        exportCsvButton: { title: "CSVを作成中", start: "現在のランキングをCSVファイルに変換しています。", done: "CSV保存を開始しました。表示中のランキングがない場合は先に候補を抽出してください。" },
+        favoriteDashboardButton: { title: "お気に入り分析中", start: "お気に入り登録した銘柄だけを再評価しています。", done: "お気に入り専用ダッシュボードを表示しました。" },
+        sectorRankingButton: { title: "セクター別ランキング作成中", start: "業種ごとに候補を再計算しています。", done: "セクター別ランキングを表示しました。" },
+        saveSettingsButton: { title: "条件を保存中", start: "現在の市場・期間・係数・リスク条件を保存しています。", done: "条件を保存しました。次回起動時にも同じ設定を使えます。" },
+        historyButton: { title: "履歴を表示中", start: "過去の抽出結果を読み込んでいます。", done: "抽出履歴を表示しました。" },
+        clearHistoryButton: { title: "履歴を削除中", start: "保存済みの抽出履歴を削除しています。", done: "履歴を削除しました。" }
+      };
+
+      function setToolStatus(buttonId, stateName = "start", overrideText = "") {
+        const panel = document.getElementById("toolStatus");
+        if (!panel) return;
+        const guide = toolGuide[buttonId] || { title: "処理中", start: "処理しています。", done: "処理が完了しました。" };
+        const isDone = stateName === "done";
+        panel.classList.add("show");
+        panel.classList.toggle("done", isDone);
+        panel.innerHTML = `<strong>${guide.title}</strong>${overrideText || guide[stateName] || guide.start}${isDone ? "" : `<div class="progress"><span></span></div>`}`;
+        if (!isDone) panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+
+      async function runTool(buttonId, handler) {
+        const button = document.getElementById(buttonId);
+        document.querySelectorAll("[data-tool-button]").forEach((item) => {
+          item.classList.remove("tool-active");
+          item.classList.remove("tool-done");
+          item.disabled = false;
+        });
+        if (button) {
+          button.classList.add("tool-active");
+          button.disabled = true;
+        }
+        setToolStatus(buttonId, "start");
+        try {
+          const result = await handler();
+          setToolStatus(buttonId, "done");
+          return result;
+        } catch (error) {
+          setToolStatus(buttonId, "done", `処理に失敗しました: ${error.message || error}`);
+          throw error;
+        } finally {
+          if (button) {
+            button.classList.remove("tool-active");
+            button.classList.add("tool-done");
+            button.disabled = false;
+          }
+        }
       }
 
       function getApiBaseUrl() {
@@ -1386,21 +1452,31 @@
             clearRanking();
           });
         });
-        document.getElementById("screenButton").addEventListener("click", screen);
-        document.getElementById("backtestButton").addEventListener("click", backtest);
-        document.getElementById("optimizeButton").addEventListener("click", optimizeCoefficients);
-        document.getElementById("fullBacktestButton").addEventListener("click", runFullBacktest);
-        document.getElementById("compareButton").addEventListener("click", comparePeriods);
-        document.getElementById("exportCsvButton").addEventListener("click", exportCsv);
-        document.getElementById("favoriteDashboardButton").addEventListener("click", renderFavoriteDashboard);
-        document.getElementById("sectorRankingButton").addEventListener("click", renderSectorRanking);
-        document.getElementById("saveSettingsButton").addEventListener("click", saveSettings);
+        const toolBindings = [
+          ["screenButton", screen],
+          ["backtestButton", backtest],
+          ["optimizeButton", optimizeCoefficients],
+          ["fullBacktestButton", runFullBacktest],
+          ["compareButton", comparePeriods],
+          ["exportCsvButton", exportCsv],
+          ["favoriteDashboardButton", renderFavoriteDashboard],
+          ["sectorRankingButton", renderSectorRanking],
+          ["saveSettingsButton", saveSettings],
+          ["historyButton", renderHistory]
+        ];
+        toolBindings.forEach(([id, handler]) => {
+          const button = document.getElementById(id);
+          button.dataset.toolButton = "true";
+          button.addEventListener("click", () => runTool(id, handler));
+        });
         document.getElementById("resetButton").addEventListener("click", reset);
-        document.getElementById("historyButton").addEventListener("click", renderHistory);
+        document.getElementById("clearHistoryButton").dataset.toolButton = "true";
         document.getElementById("clearHistoryButton").addEventListener("click", () => {
-          localStorage.removeItem(HISTORY_STORAGE_KEY);
-          document.getElementById("historyPanel").classList.remove("show");
-          setMessage("履歴を削除しました。");
+          runTool("clearHistoryButton", () => {
+            localStorage.removeItem(HISTORY_STORAGE_KEY);
+            document.getElementById("historyPanel").classList.remove("show");
+            setMessage("履歴を削除しました。");
+          });
         });
         document.getElementById("toggleHelpButton").addEventListener("click", () => {
           showFactorHelp = !showFactorHelp;
