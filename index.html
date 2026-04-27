@@ -768,6 +768,9 @@
             throw new Error(await response.text());
           }
           const json = await response.json();
+          if (json.ok === true && json.response && !json.explanation) {
+            throw new Error("Cloudflare Workerがまだテスト用コードのままです。workers/ai-explainer/src/index.jsの本番コードをCloudflareのEdit Codeに貼り付けて、Save and Deployしてください。");
+          }
           if (box) box.innerHTML = `<strong>AI解説</strong>\n${escapeHtml(json.explanation || "解説を取得できませんでした。")}`;
           setMessage(`${item.symbol} のAI解説を表示しました。`);
         } catch (error) {
