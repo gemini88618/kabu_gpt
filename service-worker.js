@@ -1,4 +1,4 @@
-const CACHE_NAME = "stock-scanner-static-v17";
+const CACHE_NAME = "stock-scanner-static-v18";
 const STATIC_ASSETS = ["./index.html", "./manifest.json", "./icon.png", "./data/market-data.json"];
 
 self.addEventListener("install", (event) => {
