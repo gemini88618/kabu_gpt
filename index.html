@@ -674,6 +674,13 @@
       function makeExplanation(item) {
         const topReasons = [...item.reasons].sort((a, b) => Number.parseInt(b.value, 10) - Number.parseInt(a.value, 10)).slice(0, 3);
         const labels = topReasons.map((reason) => `${reason.label}${reason.value}`).join("、");
+        if (item.strategy_type === "value_growth") {
+          const per = formatFactor(item.fundamentals?.per, "倍");
+          const pbr = formatFactor(item.fundamentals?.pbr, "倍");
+          const roe = formatFactor(item.fundamentals?.roe, "%");
+          const growth = formatFactor(item.fundamentals?.sales_growth, "%");
+          return `${labels}が強い割安成長候補です。PER${per}、PBR${pbr}、ROE${roe}、売上成長率${growth}を重視し、安いだけでなく収益性と増収傾向がある銘柄を優先しています。`;
+        }
         if (item.actual_return != null) {
           return `当時の予測では${labels}が強く、期待上昇率は${item.predicted_return.toFixed(1)}%でした。実績は${item.actual_return.toFixed(1)}%で、${item.hit_target ? "目標を達成しています。" : "目標には届いていません。"}`;
         }
@@ -681,6 +688,29 @@
       }
 
       function getDecision(item) {
+        if (item.strategy_type === "value_growth") {
+          const valueScore = item.value_growth_score ?? Math.round(((item.score ?? 0) + 1) * 50);
+          const hasHardRisk = item.risk_level === "高" || item.risk_warnings?.includes("流動性低") || item.risk_warnings?.includes("下落耐性弱");
+          if (valueScore >= 72 && !hasHardRisk) {
+            return {
+              label: "買い検討",
+              className: "decision-buy",
+              message: `アプリ判定: 買い検討。割安成長スコア${valueScore}点で、PER/PBRの割安感と増収・収益性の両立が見えます。決算内容と損切りラインを確認したうえで分散して検討する候補です。`
+            };
+          }
+          if (valueScore >= 58 && item.risk_level !== "高") {
+            return {
+              label: "様子見",
+              className: "decision-watch",
+              message: `アプリ判定: 様子見。割安成長スコア${valueScore}点です。割安または成長の片方は良好ですが、買い判断には追加材料か押し目確認が欲しい水準です。`
+            };
+          }
+          return {
+            label: "見送り",
+            className: "decision-avoid",
+            message: `アプリ判定: 見送り。割安成長スコア${valueScore}点で、現時点では割安性・成長性・安全性の組み合わせが弱めです。`
+          };
+        }
         const target = targetReturns[state.periodType] || 10;
         const expectedRatio = item.predicted_return / target;
         const reliability = Math.round(((item.meta_score ?? 0) + 1) * 50);
@@ -836,6 +866,7 @@
       }
 
       const toolGuide = {
+        valueGrowthButton: { title: "割安成長スクリーニング中", start: "PBR1倍割れ、PER15倍以下、増収・ROE・流動性を重視して候補を抽出しています。", done: "割安成長候補を表示しました。銘柄を開くと、割安性と成長性の根拠を確認できます。" },
         screenButton: { title: "候補を抽出中", start: "条件に合う銘柄をスコアリングしています。完了後、下のランキングにトップ30が表示されます。", done: "候補抽出が完了しました。ランキングをタップすると、上昇期待の理由を確認できます。" },
         backtestButton: { title: "過去実績の見方", start: "検証期間の読み方を説明します。", done: "説明をメッセージ欄に表示しました。過去期間を選ぶと、当時の予測と実績を比較できます。" },
         optimizeButton: { title: "係数を自動調整中", start: "過去データで複数の係数パターンを試しています。少し待ってください。", done: "係数調整が完了しました。「係数を調整する」を開くと値を確認できます。" },
@@ -978,7 +1009,11 @@
           const favoriteLabel = favorites.has(item.symbol) ? "お気に入り解除" : "お気に入り";
           const aiBoxId = `ai-box-${item.symbol.replace(/[^a-zA-Z0-9]/g, "-")}`;
           const decision = getDecision(item);
-          return `<details class="stock"><summary><div class="stock-top"><div><div class="symbol">#${item.rank} ${item.symbol}</div><div class="name">${item.name}</div><div class="chip-row"><span class="chip">${item.sector}</span>${tags}</div></div><div><div class="main-value">${item.predicted_return.toFixed(1)}%</div><div class="main-label">${validation ? "当時の予測" : "期待上昇率"}</div></div></div><div class="decision ${decision.className}">${decision.message}</div>${renderSparkline(item.spark_values)}<div class="stock-metrics"><div class="metric"><div class="metric-label">総合評価</div><div class="metric-value">${item.grade}</div></div><div class="metric"><div class="metric-label">実績</div><div class="metric-value">${actual}</div></div><div class="metric"><div class="metric-label">検証判定</div><div class="metric-value ${verdictClass}">${verdict}</div></div><div class="metric"><div class="metric-label">リスク</div><div class="metric-value">${item.risk_level}</div></div><div class="metric"><div class="metric-label">PER</div><div class="metric-value">${formatFactor(item.fundamentals?.per, "倍")}</div></div><div class="metric"><div class="metric-label">ROE</div><div class="metric-value">${formatFactor(item.fundamentals?.roe, "%")}</div></div></div></summary>${warnings}<div class="detail-grid">${renderRadar(item.reasons)}<div><div class="stock-note">${makeExplanation(item)}</div><div class="reason-grid">${reasons}</div></div></div><div class="near-miss"><div class="section-title">合議モデル</div><div class="reason-grid">${renderModelScores(item.model_scores)}</div></div><div class="actions"><button class="button ghost favorite-button" data-favorite="${item.symbol}">${favoriteLabel}</button><button class="button outline ai-explain-button" data-ai-explain="${item.symbol}">AI解説を表示</button></div><div class="ai-box" id="${aiBoxId}"></div><div class="stock-note">${validation ? `この行は、選択した過去期間の開始時点での予測と、終了時点までの実績を比較しています。目標は+${targetReturns[state.periodType]}%です。` : "現在データに基づく未来予測です。"} ${item.fundamentals?.isEstimated ? "PER/PBR/ROE/売上成長率は、取得データに実数値がない場合に価格推移と銘柄特性から補完した推定値です。" : "PER/PBR/ROE/売上成長率は取得データの値を優先して評価しています。"}</div></details>`;
+          const isValueGrowth = item.strategy_type === "value_growth";
+          const mainValue = isValueGrowth ? `${item.value_growth_score}点` : `${item.predicted_return.toFixed(1)}%`;
+          const mainLabel = isValueGrowth ? "割安成長スコア" : validation ? "当時の予測" : "期待上昇率";
+          const extraMetric = isValueGrowth ? `<div class="metric"><div class="metric-label">PBR</div><div class="metric-value">${formatFactor(item.fundamentals?.pbr, "倍")}</div></div>` : "";
+          return `<details class="stock"><summary><div class="stock-top"><div><div class="symbol">#${item.rank} ${item.symbol}</div><div class="name">${item.name}</div><div class="chip-row"><span class="chip">${item.sector}</span>${tags}</div></div><div><div class="main-value">${mainValue}</div><div class="main-label">${mainLabel}</div></div></div><div class="decision ${decision.className}">${decision.message}</div>${renderSparkline(item.spark_values)}<div class="stock-metrics"><div class="metric"><div class="metric-label">総合評価</div><div class="metric-value">${item.grade}</div></div><div class="metric"><div class="metric-label">実績</div><div class="metric-value">${actual}</div></div><div class="metric"><div class="metric-label">検証判定</div><div class="metric-value ${verdictClass}">${verdict}</div></div><div class="metric"><div class="metric-label">リスク</div><div class="metric-value">${item.risk_level}</div></div><div class="metric"><div class="metric-label">PER</div><div class="metric-value">${formatFactor(item.fundamentals?.per, "倍")}</div></div><div class="metric"><div class="metric-label">ROE</div><div class="metric-value">${formatFactor(item.fundamentals?.roe, "%")}</div></div>${extraMetric}</div></summary>${warnings}<div class="detail-grid">${renderRadar(item.reasons)}<div><div class="stock-note">${makeExplanation(item)}</div><div class="reason-grid">${reasons}</div></div></div><div class="near-miss"><div class="section-title">${isValueGrowth ? "割安成長の内訳" : "合議モデル"}</div><div class="reason-grid">${renderModelScores(item.model_scores)}</div></div><div class="actions"><button class="button ghost favorite-button" data-favorite="${item.symbol}">${favoriteLabel}</button><button class="button outline ai-explain-button" data-ai-explain="${item.symbol}">AI解説を表示</button></div><div class="ai-box" id="${aiBoxId}"></div><div class="stock-note">${validation ? `この行は、選択した過去期間の開始時点での予測と、終了時点までの実績を比較しています。目標は+${targetReturns[state.periodType]}%です。` : isValueGrowth ? "割安成長スクリーニングは、現在の割安性と増収・収益性の継続性から中期的な再評価余地を見ています。" : "現在データに基づく未来予測です。"} ${item.fundamentals?.isEstimated ? "PER/PBR/ROE/売上成長率は、取得データに実数値がない場合に価格推移と銘柄特性から補完した推定値です。" : "PER/PBR/ROE/売上成長率は取得データの値を優先して評価しています。"}</div></details>`;
         }).join("") + nearMissHtml;
         document.querySelectorAll("[data-favorite]").forEach((button) => {
           button.addEventListener("click", (event) => {
@@ -1180,6 +1215,156 @@
           percent: Math.round((Number(value) + 1) * 50)
         }));
         return { symbol, name, sector, score: rawScore, model_scores: modelScores, probability, predicted_return: predictedReturn, grade, actual_return: actualReturn, hit_target: hitTarget, relative_return: relativeReturn, sector_relative_return: sectorRelativeReturn, meta_score: metaReliabilityScore, risk_level: riskLevel, risk_warnings: riskWarnings, fundamentals, reasons: reasonScores, spark_values: sourceClose.slice(-40) };
+      }
+
+      function scoreValueGrowth(item) {
+        const symbol = item.symbol;
+        const name = item.name;
+        const close = item.close || [];
+        const volume = item.volume || [];
+        const { sourceClose, sourceVolume, evaluationClose } = getWindow(close, volume);
+        if (sourceClose.length < 90) return null;
+        const latest = sourceClose[sourceClose.length - 1];
+        const monthlyReturn = pctReturn(sourceClose, 21);
+        const quarterlyReturn = pctReturn(sourceClose, 63);
+        const halfYearReturn = pctReturn(sourceClose, 126);
+        const yearlyReturn = pctReturn(sourceClose, 252);
+        const fundamentals = estimateFundamentals(item, sourceClose, sourceVolume, {
+          monthly: monthlyReturn,
+          quarterly: quarterlyReturn,
+          halfYear: halfYearReturn
+        });
+        const per = fundamentals.per;
+        const pbr = fundamentals.pbr;
+        const roe = fundamentals.roe;
+        const salesGrowth = fundamentals.sales_growth;
+        const avgVol25 = mean(sourceVolume.slice(-25));
+        const liquidityYen = latest * avgVol25;
+        const high252 = Math.max(...sourceClose.slice(-252));
+        const low252 = Math.min(...sourceClose.slice(-252));
+        const drawdown = maxDrawdown(sourceClose.slice(-252));
+        const positiveRatio60 = upDayRatio(sourceClose, 60);
+        const sector = getSector(symbol);
+        const sectorContext = item.sector_context || {};
+        const sectorAvgPbr = sectorContext.pbr || pbr || 1.5;
+        const sectorAvgPer = sectorContext.per || per || 18;
+        const valueScore =
+          0.38 * clip((15 - per) / 15, -1, 1) +
+          0.34 * clip((1.0 - pbr) / 1.0, -1, 1) +
+          0.16 * clip((sectorAvgPer - per) / Math.max(sectorAvgPer, 1), -1, 1) +
+          0.12 * clip((sectorAvgPbr - pbr) / Math.max(sectorAvgPbr, 0.1), -1, 1);
+        const growthScore =
+          0.42 * clip(salesGrowth / 18, -1, 1) +
+          0.28 * clip((roe - 8) / 14, -1, 1) +
+          0.18 * clip((quarterlyReturn + halfYearReturn * 0.6) / 45, -1, 1) +
+          0.12 * clip((positiveRatio60 - 0.48) / 0.22, -1, 1);
+        const qualityScore =
+          0.34 * clip((roe - 10) / 16, -1, 1) +
+          0.24 * clip((salesGrowth - 5) / 18, -1, 1) +
+          0.18 * clip((liquidityYen - (state.market === "jp" ? 80000000 : 50000000)) / (state.market === "jp" ? 700000000 : 500000000), -1, 1) +
+          0.14 * clip((latest / Math.max(low252, 1) - 1) * 100 / 45, -1, 1) -
+          0.10 * clip(drawdown / 45, 0, 1);
+        const consistencyScore =
+          0.35 * clip(monthlyReturn / 15, -1, 1) +
+          0.35 * clip(halfYearReturn / 35, -1, 1) +
+          0.20 * clip(yearlyReturn / 55, -1, 1) +
+          0.10 * clip((latest / Math.max(high252, 1) - 0.55) / 0.45, -1, 1);
+        const rawScore = clip(
+          valueScore * 0.34 +
+          growthScore * 0.32 +
+          qualityScore * 0.22 +
+          consistencyScore * 0.12,
+          -1,
+          1
+        );
+        const valueGrowthScore = Math.round((rawScore + 1) * 50);
+        const strictUndervalued = (Number.isFinite(pbr) && pbr <= 1.0) || (Number.isFinite(per) && per <= 15);
+        const acceptableGrowth = salesGrowth >= 0 && roe >= 5;
+        const riskWarnings = [];
+        if (drawdown > 42) riskWarnings.push("下落耐性弱");
+        if (liquidityYen < (state.market === "jp" ? 50000000 : 25000000)) riskWarnings.push("流動性低");
+        if (per <= 0 || pbr <= 0) riskWarnings.push("財務指標注意");
+        const riskLevel = riskWarnings.length >= 2 ? "高" : riskWarnings.length ? "中" : "低";
+        const grade = valueGrowthScore >= 72 ? "強" : valueGrowthScore >= 58 ? "中" : "弱";
+        const predictedReturn = Math.max(0, Math.min(50, valueGrowthScore * 0.55));
+        const actualReturn = evaluationClose && evaluationClose.length > 1 ? ((evaluationClose[evaluationClose.length - 1] / evaluationClose[0]) - 1) * 100 : null;
+        const hitTarget = actualReturn != null ? actualReturn >= targetReturns[state.periodType] : false;
+        const reasons = [
+          ["PBR割安", pbr <= 1 ? 1 : clip((1.5 - pbr) / 1.5, -1, 1)],
+          ["PER割安", per <= 15 ? 1 : clip((22 - per) / 22, -1, 1)],
+          ["増収傾向", clip(salesGrowth / 18, -1, 1)],
+          ["ROE収益性", clip((roe - 6) / 18, -1, 1)],
+          ["継続上昇", consistencyScore],
+          ["流動性/安全性", qualityScore]
+        ].map(([label, value]) => ({
+          label,
+          value: `${Math.round((Number(value) + 1) * 50)}点`,
+          percent: Math.round((Number(value) + 1) * 50)
+        }));
+        const modelScores = {
+          "割安性": Math.round((valueScore + 1) * 50),
+          "成長性": Math.round((growthScore + 1) * 50),
+          "収益品質": Math.round((qualityScore + 1) * 50),
+          "継続性": Math.round((consistencyScore + 1) * 50)
+        };
+        return {
+          symbol,
+          name,
+          sector,
+          strategy_type: "value_growth",
+          score: rawScore,
+          value_growth_score: valueGrowthScore,
+          model_scores: modelScores,
+          probability: valueGrowthScore,
+          predicted_return: predictedReturn,
+          grade,
+          actual_return: actualReturn,
+          hit_target: hitTarget,
+          relative_return: monthlyReturn - (item.benchmark_return || 0),
+          sector_relative_return: monthlyReturn - (sectorContext.return21 || 0),
+          meta_score: rawScore,
+          risk_level: riskLevel,
+          risk_warnings: riskWarnings,
+          fundamentals,
+          reasons,
+          spark_values: sourceClose.slice(-40),
+          strict_undervalued: strictUndervalued,
+          acceptable_growth: acceptableGrowth
+        };
+      }
+
+      async function screenValueGrowth() {
+        let scopedItems = [];
+        let totalCount = 0;
+        let scopeLabel = state.market === "jp" ? "JPX普通株全体" : "米国株500銘柄";
+        const localItems = await fetchLocalMarketData();
+        totalCount = localItems.length;
+        scopedItems = getUniverseSlice(localItems);
+        scopeLabel = getUniverseScopeLabel(totalCount, scopedItems.length);
+        const sectorContext = buildScoringContext(scopedItems);
+        const benchmarkReturn = mean(scopedItems.map((item) => pctReturn(item.close || [], 21)));
+        const scored = scopedItems
+          .map((item, index) => scoreValueGrowth({ ...item, universe_position: index, universe_size: scopedItems.length, benchmark_return: benchmarkReturn, sector_context: sectorContext[getSector(item.symbol)] }))
+          .filter(Boolean)
+          .filter((item) => item.strict_undervalued && item.acceptable_growth)
+          .filter((item) => !shouldExcludeByRisk(item))
+          .sort((a, b) => b.value_growth_score - a.value_growth_score);
+        const fallback = scored.length ? scored : scopedItems
+          .map((item, index) => scoreValueGrowth({ ...item, universe_position: index, universe_size: scopedItems.length, benchmark_return: benchmarkReturn, sector_context: sectorContext[getSector(item.symbol)] }))
+          .filter(Boolean)
+          .filter((item) => item.acceptable_growth)
+          .filter((item) => !shouldExcludeByRisk(item))
+          .sort((a, b) => b.value_growth_score - a.value_growth_score);
+        const items = fallback.slice(0, 30).map((item, index) => ({ ...item, rank: index + 1 }));
+        latestNearMisses = fallback.slice(30, 35);
+        latestResults = items;
+        latestMeta = { scannedCount: scopedItems.length, totalCount, scopeLabel, strategy: "value_growth" };
+        if (!items.length) throw new Error("割安成長条件を通過した銘柄がありませんでした。リスク条件を緩めるか、対象銘柄数を増やしてください。");
+        renderRanking(items, latestMeta);
+        saveHistory({ items, scannedCount: scopedItems.length, totalCount, scopeLabel });
+        renderDataStatus();
+        renderAlerts(items);
+        setMessage(`割安成長候補を${items.length}件表示しました。対象: ${scopeLabel} / PBR1倍割れ・PER15倍以下・増収/ROEを重視しています。`);
       }
 
       async function screenWithBrowserData() {
@@ -1552,9 +1737,29 @@
         });
       }
 
+      function ensureValueGrowthButton() {
+        if (document.getElementById("valueGrowthButton")) return;
+        const screenButton = document.getElementById("screenButton");
+        if (!screenButton) return;
+        const button = document.createElement("button");
+        button.className = "button outline";
+        button.id = "valueGrowthButton";
+        button.title = "PBR1倍割れ、PER15倍以下、増収・ROE・流動性を重視して割安成長株を抽出します";
+        button.innerHTML = '割安成長を抽出<span class="sub">PBR/PER/増収増益</span>';
+        screenButton.insertAdjacentElement("afterend", button);
+        const guideGrid = document.querySelector(".action-guide-grid");
+        if (guideGrid && !document.getElementById("valueGrowthGuide")) {
+          const guide = document.createElement("div");
+          guide.id = "valueGrowthGuide";
+          guide.innerHTML = "<strong>割安成長を抽出</strong><span>PBR1倍割れ・PER15倍以下を中心に、売上成長、ROE、流動性、株価の継続性を合わせて中期の再評価候補を表示します。</span>";
+          guideGrid.insertBefore(guide, guideGrid.firstChild);
+        }
+      }
+
       function init() {
         loadSettings();
         syncButtons();
+        ensureValueGrowthButton();
         document.querySelectorAll("[data-market]").forEach((button) => {
           button.addEventListener("click", () => {
             state.market = button.dataset.market;
@@ -1599,6 +1804,7 @@
         });
         const toolBindings = [
           ["screenButton", screen],
+          ["valueGrowthButton", screenValueGrowth],
           ["backtestButton", backtest],
           ["optimizeButton", optimizeCoefficients],
           ["fullBacktestButton", runFullBacktest],

@@ -223,14 +223,17 @@ SSNC TCOM TKO TWLO U UPST VEEV WDAY WING WIX WSM XPEV XYZ ZM
 
 
 def synthetic_history(symbol: str, index: int, days: int = 560) -> dict:
-    start = datetime.now(timezone.utc).date() - timedelta(days=days * 1.45)
+    end = datetime.now(timezone.utc).date()
+    while end.weekday() >= 5:
+        end -= timedelta(days=1)
+    start = end - timedelta(days=int(days * 1.65))
     dates: list[str] = []
     close: list[float] = []
     volume: list[int] = []
     price = 80 + index * 7
     day = start
 
-    while len(close) < days:
+    while day <= end:
         if day.weekday() < 5:
             t = len(close)
             drift = 0.0008 + (index % 7) * 0.00012
@@ -242,6 +245,9 @@ def synthetic_history(symbol: str, index: int, days: int = 560) -> dict:
             volume.append(int(700_000 + index * 18_000 + abs(math.sin(t / 9)) * 550_000))
         day += timedelta(days=1)
 
+    dates = dates[-days:]
+    close = close[-days:]
+    volume = volume[-days:]
     return {"symbol": symbol, "dates": dates, "close": close, "volume": volume}
 
 
@@ -438,9 +444,11 @@ def build_market_data() -> dict:
     for market, symbols in symbol_groups.items():
         output["markets"][market] = []
         for symbol, name in symbols:
-            history = fetch_yfinance_history(symbol) or synthetic_history(symbol, global_index)
+            history = fetch_yfinance_history(symbol)
+            data_source = "yfinance" if history else "synthetic_fallback"
+            history = history or synthetic_history(symbol, global_index)
             fundamentals = fetch_yfinance_fundamentals(symbol)
-            output["markets"][market].append({"symbol": symbol, "name": name, **history, **fundamentals})
+            output["markets"][market].append({"symbol": symbol, "name": name, "data_source": data_source, **history, **fundamentals})
             global_index += 1
         output["markets"][market] = sort_market_rows(market, output["markets"][market])
 
